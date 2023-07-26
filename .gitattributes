@@ -1,3 +1,2 @@
 * text=auto
-src/include/** linguist-vendored
-src/glad/** linguist-vendored
+src/helper_math.h linguist-vendored
