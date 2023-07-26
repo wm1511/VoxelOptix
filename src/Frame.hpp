@@ -12,21 +12,15 @@ public:
 	Frame& operator= (Frame&&) = delete;
 
 	void Recreate(int width, int height);
-	void MapMemory();
+	float4* MapMemory();
 	void UnmapMemory();
-	void Display();
-	[[nodiscard]] float* GetMemory() const { return frame_pointer_; }
-	[[nodiscard]] size_t GetSize() const { return frame_size_; }
+	void Display() const;
 
 private:
-	void CreateBuffer();
-	void CreateTexture();
-	void DeleteBuffer() const;
-	void DeleteTexture() const;
+	void CreateTexturedQuad();
+	void CreateShader();
 
 	int width_ = 0, height_ = 0;
-	size_t frame_size_ = 0;
-	float* frame_pointer_ = nullptr;
-	unsigned buffer_id_ = 0, texture_id_ = 0;
-	cudaGraphicsResource_t cuda_resource_ = nullptr;
+	unsigned vbo_ = 0, pbo_ = 0, texture_ = 0, shader_ = 0;
+	cudaGraphicsResource_t cuda_pbo_ = nullptr;
 };

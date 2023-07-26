@@ -1,6 +1,8 @@
 #include "App.hpp"
 #include "Utils.hpp"
 
+extern void launch_kernel(float4* device_memory, int width, int height);
+
 App::App() :
 	window_(std::make_unique<Window>(1920, 1080, "Voxel Optix")),
 	frame_(std::make_unique<Frame>(window_->GetWidth(), window_->GetHeight()))
@@ -28,11 +30,8 @@ void App::OnUpdate()
 	delta_time_ = current_frame - last_frame_;
 	last_frame_ = current_frame;
 
-	frame_->MapMemory();
-
-	// Render here
-	CCE(cudaMemset(frame_->GetMemory(), 1, frame_->GetSize()));
-
+	float4* device_memory = frame_->MapMemory();
+	launch_kernel(device_memory, window_->GetWidth(), window_->GetHeight());
 	frame_->UnmapMemory();
 
 	frame_->Display();

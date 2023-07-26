@@ -19,8 +19,7 @@ private:
 	void OnUpdate();
 	void OnResize() const;
 
-	double delta_time_ = 0.0;	
-	double last_frame_ = 0.0;
+	double delta_time_ = 0.0, last_frame_ = 0.0;	
 	std::unique_ptr<Window> window_ = nullptr;
 	std::unique_ptr<Frame> frame_ = nullptr;
 };

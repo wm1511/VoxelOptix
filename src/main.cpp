@@ -13,5 +13,6 @@ int main()
 		cudaDeviceReset();
 		return EXIT_FAILURE;
 	}
+	cudaDeviceReset();
 	return EXIT_SUCCESS;
 }

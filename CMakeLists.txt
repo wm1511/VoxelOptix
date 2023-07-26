@@ -6,7 +6,7 @@ if (POLICY CMP0141)
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CUDA_ARCHITECTURES 12)
+set(CMAKE_CUDA_ARCHITECTURES 50)
 
 project ("VoxelOptix" LANGUAGES CXX CUDA)
 
@@ -15,8 +15,8 @@ find_package(glfw3 REQUIRED)
 find_package(glad REQUIRED)
 find_package(glm REQUIRED)
 
-add_executable (VoxelOptix "src/main.cpp" "pch.h" "src/App.cpp" "src/Window.cpp" "src/Frame.cpp")
+add_executable (VoxelOptix "src/main.cpp" "pch.h" "src/App.cpp" "src/Window.cpp" "src/Frame.cpp" "src/stb_implementation.cpp" "src/kernel.cu")
 
+set_target_properties(VoxelOptix PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 target_precompile_headers(VoxelOptix PUBLIC pch.h)
-
 target_link_libraries(VoxelOptix PRIVATE glm::glm glfw glad::glad CUDA::cudart)
