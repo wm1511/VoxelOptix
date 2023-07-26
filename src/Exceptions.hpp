@@ -1,6 +1,4 @@
 #pragma once
-#include <exception>
-#include <format>
 
 #define CCE(call) check_result<cudaError_t>("CUDA", (call), #call, __FILE__, __LINE__)
 #define COE(call) check_result<OptixResult>("OPTIX", (call), #call, __FILE__, __LINE__)
@@ -14,5 +12,9 @@ template <typename T>
 void check_result(const char* library, const T result, char const* const func, const char* const file, int const line)
 {
 	if (result)
-		throw std::exception(std::format("{} error = {} at {}: {} '{}'", library, static_cast<int>(result), file, line, func).c_str());
+	{
+		std::stringstream ss;
+		ss << library << " error = " << static_cast<int>(result) << " at " << file << ": " << line << " '" << func << "'\n";
+		throw std::exception(ss.str().c_str());
+	}
 }

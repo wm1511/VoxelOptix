@@ -3,7 +3,7 @@
   "configurePresets": [
     {
       "name": "windows-base",
-      "toolchainFile": "C:/Users/wikto/source/VoxelOptix/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
       "hidden": true,
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
@@ -20,7 +20,7 @@
     },
     {
       "name": "x64-debug",
-      "toolchainFile": "C:/Users/wikto/source/VoxelOptix/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
       "displayName": "x64 Debug",
       "inherits": "windows-base",
       "architecture": {
@@ -33,7 +33,7 @@
     },
     {
       "name": "x64-release",
-      "toolchainFile": "C:/Users/wikto/source/VoxelOptix/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
       "displayName": "x64 Release",
       "inherits": "x64-debug",
       "cacheVariables": {
@@ -42,7 +42,7 @@
     },
     {
       "name": "linux-debug",
-      "toolchainFile": "C:/Users/wikto/source/VoxelOptix/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
       "displayName": "Linux Debug",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
@@ -63,7 +63,7 @@
     },
     {
       "name": "macos-debug",
-      "toolchainFile": "C:/Users/wikto/source/VoxelOptix/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
       "displayName": "macOS Debug",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/out/build/${presetName}",

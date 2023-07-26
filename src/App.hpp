@@ -1,6 +1,7 @@
 #pragma once
-#include "Frame.hpp"
 #include "Window.hpp"
+#include "Frame.hpp"
+#include "Renderer.hpp"
 
 class App
 {
@@ -22,4 +23,5 @@ private:
 	double delta_time_ = 0.0, last_frame_ = 0.0;	
 	std::unique_ptr<Window> window_ = nullptr;
 	std::unique_ptr<Frame> frame_ = nullptr;
+	std::unique_ptr<Renderer> renderer_ = nullptr;
 };

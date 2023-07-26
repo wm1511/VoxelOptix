@@ -1,5 +1,5 @@
 #include "Frame.hpp"
-#include "Utils.hpp"
+#include "Exceptions.hpp"
 
 Frame::Frame(const int width, const int height) :
 	width_(width), height_(height)
@@ -23,12 +23,15 @@ Frame::~Frame()
 
 void Frame::Recreate(const int width, const int height)
 {
+	if (width < 64 || height < 64)
+		return;
+
 	width_ = width;
 	height_ = height;
 
 	CGE(glGenBuffers(1, &pbo_));
     CGE(glBindBuffer(GL_ARRAY_BUFFER, pbo_));
-    CGE(glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(sizeof(float4)) * width_ * height_, nullptr, GL_STREAM_DRAW));
+    CGE(glBufferData(GL_ARRAY_BUFFER, static_cast<long long>(sizeof(float4)) * width_ * height_, nullptr, GL_STREAM_DRAW));
     CGE(glBindBuffer(GL_ARRAY_BUFFER, 0));
 
 	CCE(cudaGraphicsGLRegisterBuffer(&cuda_pbo_, pbo_, cudaGraphicsMapFlagsWriteDiscard));

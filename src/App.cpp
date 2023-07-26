@@ -1,11 +1,9 @@
 #include "App.hpp"
-#include "Utils.hpp"
-
-extern void launch_kernel(float4* device_memory, int width, int height);
 
 App::App() :
 	window_(std::make_unique<Window>(1920, 1080, "Voxel Optix")),
-	frame_(std::make_unique<Frame>(window_->GetWidth(), window_->GetHeight()))
+	frame_(std::make_unique<Frame>(window_->GetWidth(), window_->GetHeight())),
+	renderer_(std::make_unique<Renderer>())
 {
 }
 
@@ -31,7 +29,7 @@ void App::OnUpdate()
 	last_frame_ = current_frame;
 
 	float4* device_memory = frame_->MapMemory();
-	launch_kernel(device_memory, window_->GetWidth(), window_->GetHeight());
+	renderer_->render(device_memory, window_->GetWidth(), window_->GetHeight());
 	frame_->UnmapMemory();
 
 	frame_->Display();

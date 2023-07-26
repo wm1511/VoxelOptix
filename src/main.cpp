@@ -7,7 +7,7 @@ int main()
 		App app;
 		app.Run();
 	}
-	catch (const std::exception& e)
+	catch (std::exception& e)
 	{
 		std::cerr << e.what() << std::endl;
 		cudaDeviceReset();
