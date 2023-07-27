@@ -1,5 +1,5 @@
 #include "Frame.hpp"
-#include "Exceptions.hpp"
+#include "../misc/Exceptions.hpp"
 
 Frame::Frame(const int width, const int height) :
 	width_(width), height_(height)

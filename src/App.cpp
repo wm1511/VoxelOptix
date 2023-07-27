@@ -3,7 +3,9 @@
 App::App() :
 	window_(std::make_unique<Window>(1920, 1080, "Voxel Optix")),
 	frame_(std::make_unique<Frame>(window_->GetWidth(), window_->GetHeight())),
-	renderer_(std::make_unique<Renderer>())
+	menu_(std::make_unique<Menu>()),
+	camera_(std::make_shared<Camera>(window_->GetWidth(), window_->GetHeight(), 1.5f, 1.0f, 0.01f)),
+	renderer_(std::make_unique<Renderer>(window_->GetWidth(), window_->GetHeight(), camera_))
 {
 }
 
@@ -28,8 +30,13 @@ void App::OnUpdate()
 	delta_time_ = current_frame - last_frame_;
 	last_frame_ = current_frame;
 
+	menu_->CheckCursorMode(window_->GetGLFWWindow());
+
+	if (!menu_->InMenu())
+		camera_->Update(window_->GetGLFWWindow(), delta_time_);
+
 	float4* device_memory = frame_->MapMemory();
-	renderer_->render(device_memory, window_->GetWidth(), window_->GetHeight());
+	renderer_->Render(device_memory);
 	frame_->UnmapMemory();
 
 	frame_->Display();
@@ -37,6 +44,7 @@ void App::OnUpdate()
 
 void App::OnResize() const
 {
+	camera_->HandleWindowResize(window_->GetWidth(), window_->GetHeight());
 	frame_->Recreate(window_->GetWidth(), window_->GetHeight());
 	window_->ResetResizedFlag();
 }

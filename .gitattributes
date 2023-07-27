@@ -1,2 +1,2 @@
 * text=auto
-src/helper_math.h linguist-vendored
+src/external/** linguist-vendored

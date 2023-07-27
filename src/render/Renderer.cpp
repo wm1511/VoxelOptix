@@ -1,5 +1,5 @@
 #include "Renderer.hpp"
-#include "Exceptions.hpp"
+#include "../misc/Exceptions.hpp"
 
 #include <optix_stubs.h>
 #include <optix_function_table_definition.h>
@@ -13,7 +13,7 @@ static void context_log(const unsigned int level, const char* tag, const char* m
 
 static std::string read_shader(const std::string& program_name)
 {
-	const std::filesystem::path path = std::filesystem::current_path() / "CMakeFiles" / "OptixPTX.dir" / "src" / program_name;
+	const std::filesystem::path path = std::filesystem::current_path() / "CMakeFiles" / "OptixPTX.dir" / "src" / "render" / program_name;
 
 	std::ifstream file(path, std::ios::in | std::ios::binary);
 
@@ -52,23 +52,26 @@ static void fill_matrix(float matrix[12], const float3 t, const float3 s, const 
 	matrix[11] = t.z;
 }
 
-Renderer::Renderer()
+Renderer::Renderer(const int width, const int height, std::shared_ptr<Camera> camera) :
+	camera_(std::move(camera))
 {
-	init_optix();
-	create_modules();
-	create_programs();
-	create_pipeline();
+	InitOptix();
+	CreateModules();
+	CreatePrograms();
+	CreatePipeline();
 
 	gas_handles_.resize(1);
 	gas_buffers_.resize(1);
 
-	prepare_gas(gas_handles_[0], gas_buffers_[0], OPTIX_BUILD_OPERATION_BUILD);
-	prepare_ias(gas_handles_, OPTIX_BUILD_OPERATION_BUILD);
+	PrepareGas(gas_handles_[0], gas_buffers_[0], OPTIX_BUILD_OPERATION_BUILD);
+	PrepareIas(gas_handles_, OPTIX_BUILD_OPERATION_BUILD);
 
-	create_sbt();
+	CreateSbt();
+
+	h_launch_params_.width = width;
+	h_launch_params_.height = height;
 
 	CCE(cudaMalloc(reinterpret_cast<void**>(&d_launch_params_), sizeof(LaunchParams)));
-	CCE(cudaMemcpy(d_launch_params_, &h_launch_params_, sizeof(LaunchParams), cudaMemcpyHostToDevice));
 }
 
 Renderer::~Renderer()
@@ -89,16 +92,18 @@ Renderer::~Renderer()
 	COE(optixDeviceContextDestroy(context_));
 }
 
-void Renderer::render(float4* device_memory, const int width, const int height)
+void Renderer::Render(float4* device_memory)
 {
-	if (width < 64 || height < 64)
+	if (h_launch_params_.width < 64 || h_launch_params_.height < 64)
 		return;
-
-	h_launch_params_.width = width;
-	h_launch_params_.height = height;
+	
 	h_launch_params_.frame_buffer = device_memory;
 	h_launch_params_.traversable = ias_handle_;
-	h_launch_params_.camera_info.update(static_cast<float>(width), static_cast<float>(height));
+
+	h_launch_params_.camera.position = camera_->GetPosition();
+	h_launch_params_.camera.horizontal_map = camera_->GetHorizontalMap();
+	h_launch_params_.camera.vertical_map = camera_->GetVerticalMap();
+	h_launch_params_.camera.starting_point = camera_->GetStartingPoint();
 
 	CCE(cudaMemcpy(d_launch_params_, &h_launch_params_, sizeof(LaunchParams), cudaMemcpyHostToDevice));
 
@@ -115,7 +120,13 @@ void Renderer::render(float4* device_memory, const int width, const int height)
 	CCE(cudaGetLastError());
 }
 
-void Renderer::init_optix()
+void Renderer::HandleWindowResize(const int width, const int height)
+{
+	h_launch_params_.width = width;
+	h_launch_params_.height = height;
+}
+
+void Renderer::InitOptix()
 {
 	COE(optixInit());
 
@@ -133,7 +144,7 @@ void Renderer::init_optix()
 	COE(optixDeviceContextCreate(cuda_context, &options, &context_));
 }
 
-void Renderer::create_modules()
+void Renderer::CreateModules()
 {
 	module_compile_options_.maxRegisterCount = 50;
 #ifdef _DEBUG
@@ -168,7 +179,7 @@ void Renderer::create_modules()
 		&module_));
 }
 
-void Renderer::create_programs()
+void Renderer::CreatePrograms()
 {
 	raygen_programs_.resize(1);
 	OptixProgramGroupOptions rg_options = {};
@@ -216,7 +227,7 @@ void Renderer::create_programs()
 		hit_programs_.data()));
 }
 
-void Renderer::create_pipeline()
+void Renderer::CreatePipeline()
 {
 	std::vector<OptixProgramGroup> program_groups;
 
@@ -246,7 +257,7 @@ void Renderer::create_pipeline()
 	COE(optixPipelineSetStackSize(pipeline_, 2 * 1024, 2 * 1024, 2 * 1024, 2));
 }
 
-void Renderer::prepare_as(const OptixBuildInput& build_input, void*& buffer, OptixTraversableHandle& handle, const OptixBuildOperation operation) const
+void Renderer::PrepareAs(const OptixBuildInput& build_input, void*& buffer, OptixTraversableHandle& handle, const OptixBuildOperation operation) const
 {
 	OptixAccelBuildOptions accel_options = {};
 	accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_COMPACTION | OPTIX_BUILD_FLAG_ALLOW_UPDATE;
@@ -335,7 +346,7 @@ void Renderer::prepare_as(const OptixBuildInput& build_input, void*& buffer, Opt
 	CCE(cudaFree(temp_buffer));
 }
 
-void Renderer::prepare_gas(OptixTraversableHandle& handle, void*& buffer, const OptixBuildOperation operation) const
+void Renderer::PrepareGas(OptixTraversableHandle& handle, void*& buffer, const OptixBuildOperation operation) const
 {
 	unsigned indices[]
 	{
@@ -400,10 +411,10 @@ void Renderer::prepare_gas(OptixTraversableHandle& handle, void*& buffer, const 
 	input.triangleArray.sbtIndexOffsetSizeInBytes = 0;
 	input.triangleArray.sbtIndexOffsetStrideInBytes = 0;
 
-	prepare_as(input, buffer, handle, operation);
+	PrepareAs(input, buffer, handle, operation);
 }
 
-void Renderer::prepare_ias(std::vector<OptixTraversableHandle>& gases, const OptixBuildOperation operation)
+void Renderer::PrepareIas(std::vector<OptixTraversableHandle>& gases, const OptixBuildOperation operation)
 {
     std::vector<OptixInstance> instances;
 
@@ -435,12 +446,12 @@ void Renderer::prepare_ias(std::vector<OptixTraversableHandle>& gases, const Opt
     input.instanceArray.instances = reinterpret_cast<CUdeviceptr>(instance_buffer);
     input.instanceArray.numInstances = static_cast<unsigned>(instances.size());
 
-	prepare_as(input, ias_buffer_, ias_handle_, operation);
+	PrepareAs(input, ias_buffer_, ias_handle_, operation);
     
 	CCE(cudaFree(instance_buffer));
 }
 
-void Renderer::create_sbt()
+void Renderer::CreateSbt()
 {
 	std::vector<SbtRecord<RayGenData>> raygen_records;
 	for (const auto& raygen_program : raygen_programs_)

@@ -1,4 +1,6 @@
 #pragma once
+#include "src/external/helper_math.h"
+
 #include <stb_image.h>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
@@ -13,3 +15,4 @@
 #include <exception>
 #include <filesystem>
 #include <sstream>
+#include <numbers>

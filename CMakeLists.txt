@@ -33,12 +33,21 @@ find_package(glad REQUIRED)
 find_package(glm REQUIRED)
 find_package(CUDAToolkit REQUIRED)
 
-add_library(OptixPTX OBJECT "src/Programs.cu")
+add_library(OptixPTX OBJECT "src/render/Programs.cu")
 set_property(TARGET OptixPTX PROPERTY CUDA_PTX_COMPILATION ON)
 target_link_libraries(OptixPTX PRIVATE CUDA::cudart)
 target_include_directories(OptixPTX PRIVATE ${OPTIX7_DIR}/include)
 
-add_executable (VoxelOptix "src/main.cpp" "pch.h" "src/App.cpp" "src/Window.cpp" "src/Frame.cpp" "src/stb_implementation.cpp" "src/Renderer.cpp")
+add_executable (VoxelOptix 
+    "src/main.cpp" 
+    "pch.h" 
+    "src/App.cpp" 
+    "src/display/Window.cpp" 
+    "src/display/Frame.cpp" 
+    "src/misc/stb_implementation.cpp" 
+    "src/render/Renderer.cpp"
+    "src/render/Camera.cpp" 
+    "src/display/Menu.cpp")
 
 target_include_directories(VoxelOptix PRIVATE ${OPTIX7_DIR}/include)
 target_precompile_headers(VoxelOptix PUBLIC pch.h)

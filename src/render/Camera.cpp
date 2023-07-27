@@ -1,0 +1,89 @@
+#include "Camera.hpp"
+
+Camera::Camera(const int width, const int height, const float fov, const float movement_speed, const float rotation_speed) :
+	fov_(fov),
+	movement_speed_(movement_speed),
+	rotation_speed_(rotation_speed),
+	aspect_ratio_(width > 0 && height > 0 ? static_cast<float>(width) / static_cast<float>(height) : 1.0f)
+{
+}
+
+void Camera::Reconfigure(const float fov, const float movement_speed, const float rotation_speed)
+{
+	fov_ = fov;
+	movement_speed_ = movement_speed;
+	rotation_speed_ = rotation_speed;
+}
+
+void Camera::Move(GLFWwindow* window, const float factor)
+{
+	constexpr float3 up = {0.0f, 1.0f, 0.0f};
+	const float3 right = normalize(cross(direction_, up));
+
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+	{
+		position_ -= direction_ * factor;
+	}
+	else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+	{
+		position_ += direction_ * factor;
+	}
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+	{
+		position_ += right * factor;
+	}
+	else if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+	{
+		position_ -= right * factor;
+	}
+	if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+	{
+		position_ += up * factor;
+	}
+	else if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+	{
+		position_ -= up * factor;
+	}
+}
+
+void Camera::Rotate(GLFWwindow* window, const float factor)
+{
+	double current_cursor_x, current_cursor_y;
+	glfwGetCursorPos(window, &current_cursor_x, &current_cursor_y);
+
+	const float2 delta = {static_cast<float>(current_cursor_x) - prior_cursor_.x, static_cast<float>(current_cursor_y) - prior_cursor_.y};
+	prior_cursor_ = make_float2(static_cast<float>(current_cursor_x), static_cast<float>(current_cursor_y));
+
+	if (delta.x != 0.0f || delta.y != 0.0f)
+	{
+		pitch_ += delta.y * factor;
+		yaw_ += delta.x * factor;
+
+		pitch_ = clamp(pitch_, -1.5f, 1.5f);
+		yaw_ = fmodf(yaw_, 2.0f * std::numbers::pi_v<float>);
+	}
+}
+
+void Camera::HandleWindowResize(const int width, const int height)
+{
+	aspect_ratio_ = width > 0 && height > 0 ? static_cast<float>(width) / static_cast<float>(height) : 1.0f;
+}
+
+void Camera::Update(GLFWwindow* window, const double delta_time)
+{
+	constexpr float3 up = {0.0f, 1.0f, 0.0f};
+	direction_ = normalize(make_float3(cos(yaw_) * cos(pitch_), sin(pitch_), sin(yaw_) * cos(pitch_)));
+
+	Move(window, movement_speed_ * static_cast<float>(delta_time));
+	Rotate(window, rotation_speed_ * static_cast<float>(delta_time));
+
+	const float viewport_height = 2.0f * tanf(fov_ * 0.5f);
+	const float viewport_width = viewport_height * aspect_ratio_;
+	const float3 target = normalize(direction_);
+
+	u_ = normalize(cross(up, target));
+	v_ = cross(target, u_);
+	horizontal_map_ = viewport_width * u_;
+	vertical_map_ = viewport_height * v_;
+	starting_point_ = position_ - horizontal_map_ * 0.5f - vertical_map_ * 0.5f - target;
+}

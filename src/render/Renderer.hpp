@@ -1,4 +1,5 @@
 #pragma once
+#include "Camera.hpp"
 #include "LaunchParams.hpp"
 
 template <typename T>
@@ -11,7 +12,7 @@ struct SbtRecord
 class Renderer final
 {
 public:
-	Renderer();
+	Renderer(int width, int height, std::shared_ptr<Camera> camera);
 	~Renderer();
 
 	Renderer(const Renderer&) = delete;
@@ -19,17 +20,20 @@ public:
 	Renderer& operator=(const Renderer&) = delete;
 	Renderer& operator=(Renderer&&) = delete;
 
-	void render(float4* device_memory, int width, int height);
+	void Render(float4* device_memory);
+	void HandleWindowResize(int width, int height);
 
 private:
-	void init_optix();
-	void create_modules();
-	void create_programs();
-	void create_pipeline();
-	void prepare_as(const OptixBuildInput& build_input, void*& buffer, OptixTraversableHandle& handle, OptixBuildOperation operation) const;
-	void prepare_gas(OptixTraversableHandle& handle, void*& buffer, OptixBuildOperation operation) const;
-	void prepare_ias(std::vector<OptixTraversableHandle>& gases, OptixBuildOperation operation);
-	void create_sbt();
+	void InitOptix();
+	void CreateModules();
+	void CreatePrograms();
+	void CreatePipeline();
+	void PrepareAs(const OptixBuildInput& build_input, void*& buffer, OptixTraversableHandle& handle, OptixBuildOperation operation) const;
+	void PrepareGas(OptixTraversableHandle& handle, void*& buffer, OptixBuildOperation operation) const;
+	void PrepareIas(std::vector<OptixTraversableHandle>& gases, OptixBuildOperation operation);
+	void CreateSbt();
+
+	std::shared_ptr<Camera> camera_ = nullptr;
 
 	cudaStream_t stream_{};
 	OptixDeviceContext context_ = nullptr;
