@@ -56,11 +56,9 @@ void Camera::Rotate(GLFWwindow* window, const float factor)
 
 	if (delta.x != 0.0f || delta.y != 0.0f)
 	{
-		pitch_ += delta.y * factor;
-		yaw_ += delta.x * factor;
-
-		pitch_ = clamp(pitch_, -1.5f, 1.5f);
-		yaw_ = fmodf(yaw_, 2.0f * std::numbers::pi_v<float>);
+		angle_ += delta * factor;
+		angle_.y = clamp(angle_.y, -1.5f, 1.5f);
+		angle_.x = fmodf(angle_.x, 2.0f * std::numbers::pi_v<float>);
 	}
 }
 
@@ -72,18 +70,17 @@ void Camera::HandleWindowResize(const int width, const int height)
 void Camera::Update(GLFWwindow* window, const double delta_time)
 {
 	constexpr float3 up = {0.0f, 1.0f, 0.0f};
-	direction_ = normalize(make_float3(cos(yaw_) * cos(pitch_), sin(pitch_), sin(yaw_) * cos(pitch_)));
+	direction_ = normalize(make_float3(cos(angle_.x) * cos(angle_.y), sin(angle_.y), sin(angle_.x) * cos(angle_.y)));
 
 	Move(window, movement_speed_ * static_cast<float>(delta_time));
 	Rotate(window, rotation_speed_ * static_cast<float>(delta_time));
 
 	const float viewport_height = 2.0f * tanf(fov_ * 0.5f);
 	const float viewport_width = viewport_height * aspect_ratio_;
-	const float3 target = normalize(direction_);
 
-	u_ = normalize(cross(up, target));
-	v_ = cross(target, u_);
+	u_ = normalize(cross(up, direction_));
+	v_ = cross(direction_, u_);
 	horizontal_map_ = viewport_width * u_;
 	vertical_map_ = viewport_height * v_;
-	starting_point_ = position_ - horizontal_map_ * 0.5f - vertical_map_ * 0.5f - target;
+	starting_point_ = position_ - horizontal_map_ * 0.5f - vertical_map_ * 0.5f - direction_;
 }

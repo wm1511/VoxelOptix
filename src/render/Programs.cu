@@ -6,6 +6,16 @@
 
 __constant__ LaunchParams launch_params;
 
+__constant__ float3 normals[6]
+{
+	{0.0f, 1.0f, 0.0f},
+	{0.0f, -1.0f, 0.0f},
+	{-1.0f, 0.0f, 0.0f},
+	{1.0f, 0.0f, 0.0f},
+	{0.0f, 0.0f, -1.0f},
+	{0.0f, 0.0f, 1.0f},
+};
+
 extern unsigned __float_as_uint(float x);
 extern float __uint_as_float(unsigned x);
 
@@ -62,9 +72,13 @@ static __forceinline__ __device__ void trace(float3& origin, float3& direction, 
 
 extern "C" __global__ void __closesthit__triangle()
 {
-	optixSetPayload_0(__float_as_uint(1.0f));
-	optixSetPayload_1(__float_as_uint(0.0f));
-	optixSetPayload_2(__float_as_uint(0.0f));
+	const unsigned index = optixGetPrimitiveIndex();
+	const float shading = 0.2f + 0.8f * fabsf(dot(normals[index / 2], optixGetWorldRayDirection()));
+	const float3 color = make_float3(1.0f, 0.0f, 0.0f) * shading;
+
+	optixSetPayload_0(__float_as_uint(color.x));
+	optixSetPayload_1(__float_as_uint(color.y));
+	optixSetPayload_2(__float_as_uint(color.z));
 }
 
 extern "C" __global__ void __miss__sky()

@@ -18,10 +18,8 @@ private:
 	void Move(GLFWwindow* window, float factor);
 	void Rotate(GLFWwindow* window, float factor);
 
-	float2 prior_cursor_{ 0.0f, 0.0f };
+	float2 prior_cursor_{ 0.0f, 0.0f }, angle_{0.0f, 0.0f};
 	float3 position_{ 0.0f, 0.0f, 4.0f }, direction_{ 0.0f, 0.0f, -1.0f };
-	float fov_{ 1.5f }, yaw_{ 0.0f }, pitch_{ 0.0f }, movement_speed_{ 0.002f }, rotation_speed_{ 0.002f };
-
 	float3 starting_point_{}, horizontal_map_{}, vertical_map_{}, u_{}, v_{};
-	float aspect_ratio_{};
+	float fov_, movement_speed_, rotation_speed_, aspect_ratio_;
 };
