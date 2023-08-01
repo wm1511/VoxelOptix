@@ -1466,4 +1466,51 @@ inline __device__ __host__ float4 smoothstep(float4 a, float4 b, float4 x)
     return (y*y*(make_float4(3.0f) - (make_float4(2.0f)*y)));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// power
+////////////////////////////////////////////////////////////////////////////////
+
+inline __device__ __host__ float2 powf(float2 a, float b)
+{
+    return make_float2(powf(a.x, b), powf(a.y, b));
+}
+inline __device__ __host__ float3 powf(float3 a, float b)
+{
+    return make_float3(powf(a.x, b), powf(a.y, b), powf(a.z, b));
+}
+inline __device__ __host__ float4 powf(float4 a, float b)
+{
+    return make_float4(powf(a.x, b), powf(a.y, b), powf(a.z, b), powf(a.w, b));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// exponential
+////////////////////////////////////////////////////////////////////////////////
+
+inline __device__ __host__ float2 expf(float2 a)
+{
+    return make_float2(expf(a.x), expf(a.y));
+}
+inline __device__ __host__ float3 expf(float3 a)
+{
+    return make_float3(expf(a.x), expf(a.y), expf(a.z));
+}
+inline __device__ __host__ float4 expf(float4 a)
+{
+    return make_float4(expf(a.x), expf(a.y), expf(a.z), expf(a.w));
+}
+
+inline __device__ __host__ float2 exp2f(float2 a)
+{
+    return make_float2(exp2f(a.x), exp2f(a.y));
+}
+inline __device__ __host__ float3 exp2f(float3 a)
+{
+    return make_float3(exp2f(a.x), exp2f(a.y), exp2f(a.z));
+}
+inline __device__ __host__ float4 exp2f(float4 a)
+{
+    return make_float4(exp2f(a.x), exp2f(a.y), exp2f(a.z), exp2f(a.w));
+}
+
 #endif

@@ -67,13 +67,16 @@ void Camera::HandleWindowResize(const int width, const int height)
 	aspect_ratio_ = width > 0 && height > 0 ? static_cast<float>(width) / static_cast<float>(height) : 1.0f;
 }
 
-void Camera::Update(GLFWwindow* window, const double delta_time)
+void Camera::Update(GLFWwindow* window, const double delta_time, const bool in_menu)
 {
 	constexpr float3 up = {0.0f, 1.0f, 0.0f};
 	direction_ = normalize(make_float3(cos(angle_.x) * cos(angle_.y), sin(angle_.y), sin(angle_.x) * cos(angle_.y)));
 
-	Move(window, movement_speed_ * static_cast<float>(delta_time));
-	Rotate(window, rotation_speed_ * static_cast<float>(delta_time));
+	if (!in_menu)
+	{
+		Move(window, movement_speed_ * static_cast<float>(delta_time));
+		Rotate(window, rotation_speed_ * static_cast<float>(delta_time));
+	}
 
 	const float viewport_height = 2.0f * tanf(fov_ * 0.5f);
 	const float viewport_width = viewport_height * aspect_ratio_;

@@ -5,13 +5,13 @@
 #include <optix_function_table_definition.h>
 
 #ifdef _DEBUG
-static void context_log(const unsigned int level, const char* tag, const char* message, void*)
+static void ContextLog(const unsigned int level, const char* tag, const char* message, void*)
 {
 	printf("[%u][%s]: %s\n", level, tag, message);
 }
 #endif
 
-static std::string read_shader(const std::string& program_name)
+static std::string ReadShader(const std::string& program_name)
 {
 	const std::filesystem::path path = std::filesystem::current_path() / "CMakeFiles" / "OptixPTX.dir" / "src" / "render" / program_name;
 
@@ -29,7 +29,7 @@ static std::string read_shader(const std::string& program_name)
 	return source;
 }
 
-static void fill_matrix(float matrix[12], const float3 t, const float3 s, const float3 r)
+static void FillMatrix(float matrix[12], const float3 t, const float3 s, const float3 r)
 {
 	const float sa = sin(r.z);
 	const float ca = cos(r.z);
@@ -96,7 +96,8 @@ void Renderer::Render(float4* device_memory)
 {
 	if (h_launch_params_.width < 64 || h_launch_params_.height < 64)
 		return;
-	
+
+	h_launch_params_.time = static_cast<float>(glfwGetTime());
 	h_launch_params_.frame_buffer = device_memory;
 	h_launch_params_.traversable = ias_handle_;
 
@@ -134,7 +135,7 @@ void Renderer::InitOptix()
 
 #ifdef _DEBUG
 	options.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
-	options.logCallbackFunction = &context_log;
+	options.logCallbackFunction = &ContextLog;
 	options.logCallbackLevel = 4;
 #endif
 
@@ -167,7 +168,7 @@ void Renderer::CreateModules()
 #endif
 	pipeline_compile_options_.pipelineLaunchParamsVariableName = "launch_params";
 
-	const std::string shader = read_shader("Programs.ptx");
+	const std::string shader = ReadShader("Programs.ptx");
 
 	COE(optixModuleCreate(
 		context_,

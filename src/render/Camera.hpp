@@ -7,7 +7,7 @@ public:
 
 	void Reconfigure(float fov, float movement_speed, float rotation_speed);
 	void HandleWindowResize(int width, int height);
-	void Update(GLFWwindow* window, double delta_time);
+	void Update(GLFWwindow* window, double delta_time, bool in_menu);
 
 	[[nodiscard]] float3 GetPosition() const { return position_; }
 	[[nodiscard]] float3 GetStartingPoint() const { return starting_point_; }

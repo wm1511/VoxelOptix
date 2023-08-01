@@ -1,9 +1,12 @@
 #pragma once
 #include <optix_types.h>
+#include <vector_types.h>
 
 struct LaunchParams
 {
 	int width{}, height{};
+    float time{};
+    float cloud_render_distance{};
 	float4* frame_buffer = nullptr;
 
     struct
