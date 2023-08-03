@@ -21,6 +21,7 @@ public:
 private:
 	void OnUpdate();
 	void OnResize() const;
+	void OnceASecond() const;
 
 	double delta_time_ = 0.0, last_frame_ = 0.0;
 	std::unique_ptr<Window> window_ = nullptr;

@@ -11,6 +11,12 @@ Window::~Window()
 	glfwTerminate();
 }
 
+void Window::SetTitle(std::string name)
+{
+	window_name_ = std::move(name);
+	glfwSetWindowTitle(window_, window_name_.c_str());
+}
+
 void Window::FramebufferResizeCallback(GLFWwindow* window, const int width, const int height)
 {
 	const auto app_window = static_cast<Window*>(glfwGetWindowUserPointer(window));
@@ -50,8 +56,8 @@ void Window::Init()
 	if (!window_)
 		throw std::exception("Failed to create GLFW window");
 
-	if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress))) 
-        throw std::exception("Failed to load GL");
+	if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)))
+		throw std::exception("Failed to load GL");
 
 	glfwSwapInterval(1);
 

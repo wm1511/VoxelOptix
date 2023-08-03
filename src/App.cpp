@@ -4,7 +4,7 @@ App::App() :
 	window_(std::make_unique<Window>(1920, 1080, "Voxel Optix")),
 	frame_(std::make_unique<Frame>(window_->GetWidth(), window_->GetHeight())),
 	menu_(std::make_unique<Menu>()),
-	camera_(std::make_shared<Camera>(window_->GetWidth(), window_->GetHeight(), 1.3f, 20.0f, 0.02f)),
+	camera_(std::make_shared<Camera>(window_->GetWidth(), window_->GetHeight())),
 	world_(std::make_shared<World>()),
 	renderer_(std::make_unique<Renderer>(window_->GetWidth(), window_->GetHeight(), camera_, world_))
 {
@@ -18,6 +18,9 @@ void App::Run()
 
 		if (window_->Resized())
 			OnResize();
+
+		if (static_cast<unsigned>(glfwGetTime()) != static_cast<unsigned>(last_frame_))
+			OnceASecond();
 
 		OnUpdate();
 
@@ -50,4 +53,9 @@ void App::OnResize() const
 	renderer_->HandleWindowResize(width, height);
 	frame_->Recreate(width, height);
 	window_->ResetResizedFlag();
+}
+
+void App::OnceASecond() const
+{
+	window_->SetTitle(std::format("Voxel Optix - FPS: {}", static_cast<unsigned>(1.0 / delta_time_)));
 }

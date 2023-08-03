@@ -3,9 +3,8 @@
 class Camera
 {
 public:
-	Camera(int width, int height, float fov, float movement_speed, float rotation_speed);
+	Camera(int width, int height);
 
-	void Reconfigure(float fov, float movement_speed, float rotation_speed);
 	void HandleWindowResize(int width, int height);
 	void Update(GLFWwindow* window, double delta_time, bool in_menu);
 
@@ -18,8 +17,8 @@ private:
 	void Move(GLFWwindow* window, float factor, float3 direction);
 	void Rotate(GLFWwindow* window, float factor);
 
-	float2 prior_cursor_{ 0.0f, 0.0f }, angle_{0.5f * std::numbers::pi_v<float>, 0.0f};
-	float3 position_{ 0.0f, 72.0f, 0.0f };
+	float2 prior_cursor_{ 0.0f, 0.0f }, angle_{ 0.5f * std::numbers::pi_v<float>, 0.0f };
+	float3 position_{ 0.0f, 32.0f, 0.0f };
 	float3 starting_point_{}, horizontal_map_{}, vertical_map_{}, u_{}, v_{};
-	float fov_, movement_speed_, rotation_speed_, aspect_ratio_;
-};
+	float fov_{ 1.3f }, movement_speed_{ 20.0f }, rotation_speed_{ 0.02f }, aspect_ratio_;
+	};

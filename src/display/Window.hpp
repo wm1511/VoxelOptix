@@ -11,34 +11,14 @@ public:
 	Window& operator= (const Window&) = delete;
 	Window& operator= (Window&&) = delete;
 
-	[[nodiscard]] bool ShouldClose() const
-	{
-		return glfwWindowShouldClose(window_);
-	}
-	void SetCloseFlag()
-	{
-		glfwSetWindowShouldClose(window_, 1);
-	}
-	[[nodiscard]] GLFWwindow* GetGLFWWindow() const
-	{
-		return window_;
-	}
-	[[nodiscard]] bool Resized() const
-	{
-		return framebuffer_resized_;
-	}
-	[[nodiscard]] int GetWidth() const
-	{
-		return width_;
-	}
-	[[nodiscard]] int GetHeight() const
-	{
-		return height_;
-	}
-	void ResetResizedFlag()
-	{
-		framebuffer_resized_ = false;
-	}
+	[[nodiscard]] bool ShouldClose() const { return glfwWindowShouldClose(window_); }
+	[[nodiscard]] GLFWwindow* GetGLFWWindow() const { return window_; }
+	[[nodiscard]] bool Resized() const { return framebuffer_resized_; }
+	[[nodiscard]] int GetWidth() const { return width_; }
+	[[nodiscard]] int GetHeight() const { return height_; }
+	void ResetResizedFlag() { framebuffer_resized_ = false; }
+	void SetCloseFlag() const { glfwSetWindowShouldClose(window_, 1); }
+	void SetTitle(std::string name);
 
 private:
 	static void FramebufferResizeCallback(GLFWwindow* window, int width, int height);

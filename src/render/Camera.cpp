@@ -1,18 +1,8 @@
 #include "Camera.hpp"
 
-Camera::Camera(const int width, const int height, const float fov, const float movement_speed, const float rotation_speed) :
-	fov_(fov),
-	movement_speed_(movement_speed),
-	rotation_speed_(rotation_speed),
+Camera::Camera(const int width, const int height) :
 	aspect_ratio_(width > 0 && height > 0 ? static_cast<float>(width) / static_cast<float>(height) : 1.0f)
 {
-}
-
-void Camera::Reconfigure(const float fov, const float movement_speed, const float rotation_speed)
-{
-	fov_ = fov;
-	movement_speed_ = movement_speed;
-	rotation_speed_ = rotation_speed;
 }
 
 void Camera::Move(GLFWwindow* window, const float factor, const float3 direction)
