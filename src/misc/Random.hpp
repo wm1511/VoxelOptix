@@ -5,14 +5,16 @@ __forceinline__ __host__ __device__ unsigned rotl(const unsigned x, const int k)
 	return (x << k) | (x >> (32 - k));
 }
 
+// pcg_rxs_m_xs
 __forceinline__ __host__ __device__ float pcg(unsigned* random_state)
 {
 	const unsigned state = *random_state;
 	*random_state = *random_state * 747796405u + 2891336453u;
 	const unsigned word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-	return (float)(((word >> 22u) ^ word) >> 8) * (1.0f / (1ul << 24));
+	return static_cast<float>(((word >> 22u) ^ word) >> 8) * (1.0f / (1ul << 24));
 }
 
+// xoshiro128+
 __forceinline__ __host__ __device__ unsigned xoshiro(uint4* random_state)
 {
 	const unsigned result = random_state->x + random_state->w;

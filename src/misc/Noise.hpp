@@ -1,4 +1,5 @@
 #pragma once
+// Noise generation based on Inigo Quilez articles
 
 __forceinline__ __host__ __device__ float Hash(const float n)
 {
