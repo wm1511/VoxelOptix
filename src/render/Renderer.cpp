@@ -4,67 +4,68 @@
 #include <optix_stubs.h>
 #include <optix_function_table_definition.h>
 
-#ifdef _DEBUG
-static void ContextLog(const unsigned int level, const char* tag, const char* message, void*)
+namespace
 {
-	printf("[%u][%s]: %s\n", level, tag, message);
-}
+#ifdef _DEBUG
+	void ContextLog(const unsigned int level, const char* tag, const char* message, void*)
+	{
+		printf("[%u][%s]: %s\n", level, tag, message);
+	}
 #endif
 
-static std::string ReadShader(const std::string& program_name)
-{
-	const std::filesystem::path path = std::filesystem::current_path() / "CMakeFiles" / "OptixPTX.dir" / "src" / "render" / program_name;
+	std::string ReadShader(const std::string& program_name)
+	{
+		const std::filesystem::path path = std::filesystem::current_path() / "CMakeFiles" / "OptixPTX.dir" / "src" / "render" / program_name;
 
-	std::ifstream file(path, std::ios::in | std::ios::binary);
+		std::ifstream file(path, std::ios::in | std::ios::binary);
 
-	if (!file)
-		throw std::exception("Failed to open Optix PTX shader file");
+		if (!file)
+			throw std::exception("Failed to open Optix PTX shader file");
 
-    const size_t size = file_size(path);
-    std::string source(size, '\0');
-	
-    file.read(source.data(), static_cast<long long>(size));
-	file.close();
+	    const size_t size = file_size(path);
+	    std::string source(size, '\0');
+		
+	    file.read(source.data(), static_cast<long long>(size));
+		file.close();
 
-	return source;
+		return source;
+	}
+
+	void FillMatrix(float matrix[12], const float3 t = {0.0f, 0.0f, 0.0f}, const float3 s = {1.0f, 1.0f, 1.0f}, const float3 r = {0.0f, 0.0f, 0.0f})
+	{
+		const float sa = sin(r.z);
+		const float ca = cos(r.z);
+		const float sb = sin(r.y);
+		const float cb = cos(r.y);
+		const float sc = sin(r.x);
+		const float cc = cos(r.x);
+
+		matrix[0] = cb * cc * s.x;
+		matrix[1] = -cb * sc * s.y;
+		matrix[2] = sb * s.z;
+		matrix[3] = t.x;
+		matrix[4] = (sa * sb * cc + ca * sc) * s.x;
+		matrix[5] = (-sa * sb * sc + ca * cc) * s.y;
+		matrix[6] = -sa * cb * s.z;
+		matrix[7] = t.y;
+		matrix[8] = (-ca * sb * cc + sa * sc) * s.x;
+		matrix[9] = (ca * sb * sc + sa * cc) * s.y;
+		matrix[10] = ca * cb * s.z;
+		matrix[11] = t.z;
+	}
 }
 
-static void FillMatrix(float matrix[12], const float3 t, const float3 s, const float3 r)
-{
-	const float sa = sin(r.z);
-	const float ca = cos(r.z);
-	const float sb = sin(r.y);
-	const float cb = cos(r.y);
-	const float sc = sin(r.x);
-	const float cc = cos(r.x);
-
-	matrix[0] = cb * cc * s.x;
-	matrix[1] = -cb * sc * s.y;
-	matrix[2] = sb * s.z;
-	matrix[3] = t.x;
-	matrix[4] = (sa * sb * cc + ca * sc) * s.x;
-	matrix[5] = (-sa * sb * sc + ca * cc) * s.y;
-	matrix[6] = -sa * cb * s.z;
-	matrix[7] = t.y;
-	matrix[8] = (-ca * sb * cc + sa * sc) * s.x;
-	matrix[9] = (ca * sb * sc + sa * cc) * s.y;
-	matrix[10] = ca * cb * s.z;
-	matrix[11] = t.z;
-}
-
-Renderer::Renderer(const int width, const int height, std::shared_ptr<Camera> camera) :
-	camera_(std::move(camera))
+Renderer::Renderer(const int width, const int height, std::shared_ptr<Camera> camera, std::shared_ptr<World> world) :
+	camera_(std::move(camera)),
+	world_(std::move(world))
 {
 	InitOptix();
 	CreateModules();
 	CreatePrograms();
 	CreatePipeline();
 
-	gas_handles_.resize(1);
-	gas_buffers_.resize(1);
-
-	PrepareGas(gas_handles_[0], gas_buffers_[0], OPTIX_BUILD_OPERATION_BUILD);
-	PrepareIas(gas_handles_, OPTIX_BUILD_OPERATION_BUILD);
+	PrepareGas(OPTIX_BUILD_OPERATION_BUILD);
+	PrepareIas(OPTIX_BUILD_OPERATION_BUILD);
 
 	CreateSbt();
 
@@ -83,21 +84,18 @@ Renderer::~Renderer()
 	CCE(cudaFree(d_hit_records_));
 
 	CCE(cudaFree(ias_buffer_));
-	CCE(cudaFree(gas_buffers_[0]));
-
-	gas_buffers_.clear();
-	gas_handles_.clear();
+	CCE(cudaFree(gas_buffer_));
 
 	CCE(cudaStreamDestroy(stream_));
 	COE(optixDeviceContextDestroy(context_));
 }
 
-void Renderer::Render(float4* device_memory)
+void Renderer::Render(float4* device_memory, const float time)
 {
 	if (h_launch_params_.width < 64 || h_launch_params_.height < 64)
 		return;
 
-	h_launch_params_.time = static_cast<float>(glfwGetTime());
+	h_launch_params_.time = time;
 	h_launch_params_.frame_buffer = device_memory;
 	h_launch_params_.traversable = ias_handle_;
 
@@ -156,7 +154,8 @@ void Renderer::CreateModules()
 	module_compile_options_.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
 #endif
 
-	pipeline_compile_options_.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
+	pipeline_compile_options_.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING |
+		OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
 	pipeline_compile_options_.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE;
 	pipeline_compile_options_.usesMotionBlur = false;
 	pipeline_compile_options_.numPayloadValues = 3;
@@ -261,7 +260,7 @@ void Renderer::CreatePipeline()
 void Renderer::PrepareAs(const OptixBuildInput& build_input, void*& buffer, OptixTraversableHandle& handle, const OptixBuildOperation operation) const
 {
 	OptixAccelBuildOptions accel_options = {};
-	accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_COMPACTION | OPTIX_BUILD_FLAG_ALLOW_UPDATE;
+	accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_COMPACTION /*| OPTIX_BUILD_FLAG_ALLOW_UPDATE*/;
 	accel_options.motionOptions.numKeys = 1;
 	accel_options.operation = operation;
 
@@ -347,7 +346,7 @@ void Renderer::PrepareAs(const OptixBuildInput& build_input, void*& buffer, Opti
 	CCE(cudaFree(temp_buffer));
 }
 
-void Renderer::PrepareGas(OptixTraversableHandle& handle, void*& buffer, const OptixBuildOperation operation) const
+void Renderer::PrepareGas(const OptixBuildOperation operation)
 {
 	unsigned indices[]
 	{
@@ -379,14 +378,14 @@ void Renderer::PrepareGas(OptixTraversableHandle& handle, void*& buffer, const O
 
     float vertices[]
 	{
-        -1.0f, -1.0f,  1.0f,
-         1.0f, -1.0f,  1.0f,
-        -1.0f,  1.0f,  1.0f,
-         1.0f,  1.0f,  1.0f,
-        -1.0f, -1.0f, -1.0f,
-         1.0f, -1.0f, -1.0f,
-        -1.0f,  1.0f, -1.0f,
-         1.0f,  1.0f, -1.0f 
+        -0.5f, -0.5f,  0.5f,
+         0.5f, -0.5f,  0.5f,
+        -0.5f,  0.5f,  0.5f,
+         0.5f,  0.5f,  0.5f,
+        -0.5f, -0.5f, -0.5f,
+         0.5f, -0.5f, -0.5f,
+        -0.5f,  0.5f, -0.5f,
+         0.5f,  0.5f, -0.5f 
     };
 
 	unsigned* device_indices = nullptr;
@@ -418,30 +417,38 @@ void Renderer::PrepareGas(OptixTraversableHandle& handle, void*& buffer, const O
 	input.triangleArray.sbtIndexOffsetSizeInBytes = 0;
 	input.triangleArray.sbtIndexOffsetStrideInBytes = 0;
 
-	PrepareAs(input, buffer, handle, operation);
+	PrepareAs(input, gas_buffer_, gas_handle_, operation);
 }
 
-void Renderer::PrepareIas(std::vector<OptixTraversableHandle>& gases, const OptixBuildOperation operation)
+void Renderer::PrepareIas(const OptixBuildOperation operation)
 {
     std::vector<OptixInstance> instances;
 
-	float transform[12] = {	1.0f, 0.0f, 0.0f, 0.0f, 
-							0.0f, 1.0f, 0.0f, 0.0f, 
-							0.0f, 0.0f, 1.0f, 0.0f };
-
-	for (unsigned i = 0; i < gases.size(); i++)
+	for (const auto& chunk : world_->GetChunks())
     {
-        OptixInstance instance = {};
-        
-        instance.instanceId = 0;
-        instance.visibilityMask = 255;
-        instance.sbtOffset = i;
-        instance.flags = OPTIX_INSTANCE_FLAG_DISABLE_ANYHIT;
+		for (unsigned char i = 0; i < Chunk::size_; i++)
+		{
+			for (unsigned char j = 0; j < Chunk::size_; j++)
+			{
+				for (unsigned char k = 0; k < Chunk::size_; k++)
+				{
+					if (chunk.GetVoxel(i, j, k) == 1)
+					{
+						OptixInstance instance = {};
+	        
+						instance.instanceId = static_cast<unsigned>(instances.size());
+						instance.visibilityMask = 255;
+						instance.sbtOffset = 0;
+						instance.flags = OPTIX_INSTANCE_FLAG_DISABLE_ANYHIT;
 
-		memcpy_s(instance.transform, sizeof instance.transform, transform, sizeof transform);
+						FillMatrix(instance.transform, chunk.GetPosition() + make_float3(i, j, k));
 
-        instance.traversableHandle = gases[i];
-        instances.push_back(instance);
+						instance.traversableHandle = gas_handle_;
+						instances.push_back(instance);
+					}
+				}
+			}
+		}
     }
 
     OptixInstance* instance_buffer;

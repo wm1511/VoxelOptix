@@ -44,10 +44,12 @@ add_executable (VoxelOptix
     "src/App.cpp" 
     "src/display/Window.cpp" 
     "src/display/Frame.cpp" 
-    "src/misc/stb_implementation.cpp" 
+     
     "src/render/Renderer.cpp"
     "src/render/Camera.cpp" 
-    "src/display/Menu.cpp")
+    "src/display/Menu.cpp" 
+    "src/world/Chunk.cpp" 
+    "src/world/World.cpp")
 
 target_include_directories(VoxelOptix PRIVATE ${OPTIX7_DIR}/include)
 target_precompile_headers(VoxelOptix PUBLIC pch.h)

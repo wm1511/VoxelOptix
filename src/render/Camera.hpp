@@ -15,11 +15,11 @@ public:
 	[[nodiscard]] float3 GetVerticalMap() const { return vertical_map_; }
 
 private:
-	void Move(GLFWwindow* window, float factor);
+	void Move(GLFWwindow* window, float factor, float3 direction);
 	void Rotate(GLFWwindow* window, float factor);
 
-	float2 prior_cursor_{ 0.0f, 0.0f }, angle_{0.0f, 0.0f};
-	float3 position_{ 0.0f, 0.0f, 4.0f }, direction_{ 0.0f, 0.0f, -1.0f };
+	float2 prior_cursor_{ 0.0f, 0.0f }, angle_{0.5f * std::numbers::pi_v<float>, 0.0f};
+	float3 position_{ 0.0f, 72.0f, 0.0f };
 	float3 starting_point_{}, horizontal_map_{}, vertical_map_{}, u_{}, v_{};
 	float fov_, movement_speed_, rotation_speed_, aspect_ratio_;
 };

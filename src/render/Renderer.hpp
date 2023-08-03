@@ -1,5 +1,6 @@
 #pragma once
 #include "Camera.hpp"
+#include "../world/World.hpp"
 #include "LaunchParams.hpp"
 
 template <typename T>
@@ -12,7 +13,7 @@ struct SbtRecord
 class Renderer final
 {
 public:
-	Renderer(int width, int height, std::shared_ptr<Camera> camera);
+	Renderer(int width, int height, std::shared_ptr<Camera> camera, std::shared_ptr<World> world);
 	~Renderer();
 
 	Renderer(const Renderer&) = delete;
@@ -20,7 +21,7 @@ public:
 	Renderer& operator=(const Renderer&) = delete;
 	Renderer& operator=(Renderer&&) = delete;
 
-	void Render(float4* device_memory);
+	void Render(float4* device_memory, float time);
 	void HandleWindowResize(int width, int height);
 
 private:
@@ -29,11 +30,12 @@ private:
 	void CreatePrograms();
 	void CreatePipeline();
 	void PrepareAs(const OptixBuildInput& build_input, void*& buffer, OptixTraversableHandle& handle, OptixBuildOperation operation) const;
-	void PrepareGas(OptixTraversableHandle& handle, void*& buffer, OptixBuildOperation operation) const;
-	void PrepareIas(std::vector<OptixTraversableHandle>& gases, OptixBuildOperation operation);
+	void PrepareGas(OptixBuildOperation operation);
+	void PrepareIas(OptixBuildOperation operation);
 	void CreateSbt();
 
 	std::shared_ptr<Camera> camera_ = nullptr;
+	std::shared_ptr<World> world_ = nullptr;
 
 	cudaStream_t stream_{};
 	OptixDeviceContext context_ = nullptr;
@@ -51,10 +53,9 @@ private:
 	SbtRecord<RayGenData>* d_raygen_records_ = nullptr;
 	SbtRecord<MissData>* d_miss_records_ = nullptr;
 	SbtRecord<HitGroupData>* d_hit_records_ = nullptr;
-	std::vector<void*> gas_buffers_{};
-	std::vector<OptixTraversableHandle> gas_handles_{};
-	void* ias_buffer_ = nullptr;
-	OptixTraversableHandle ias_handle_{};
+
+	void* ias_buffer_ = nullptr, * gas_buffer_ = nullptr;
+	OptixTraversableHandle ias_handle_{}, gas_handle_{};
 
 	LaunchParams h_launch_params_{};
 	LaunchParams* d_launch_params_ = nullptr;

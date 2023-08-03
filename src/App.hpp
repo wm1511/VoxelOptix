@@ -3,6 +3,7 @@
 #include "display/Frame.hpp"
 #include "display/Menu.h"
 #include "render/Renderer.hpp"
+#include "world/World.hpp"
 
 class App
 {
@@ -26,5 +27,6 @@ private:
 	std::unique_ptr<Frame> frame_ = nullptr;
 	std::unique_ptr<Menu> menu_ = nullptr;
 	std::shared_ptr<Camera> camera_ = nullptr;
+	std::shared_ptr<World> world_ = nullptr;
 	std::unique_ptr<Renderer> renderer_ = nullptr;
 };
