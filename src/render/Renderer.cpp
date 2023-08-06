@@ -22,16 +22,16 @@ namespace
 		if (!file)
 			throw std::exception("Failed to open Optix PTX shader file");
 
-	    const size_t size = file_size(path);
-	    std::string source(size, '\0');
-		
-	    file.read(source.data(), static_cast<long long>(size));
+		const size_t size = file_size(path);
+		std::string source(size, '\0');
+
+		file.read(source.data(), static_cast<long long>(size));
 		file.close();
 
 		return source;
 	}
 
-	void FillMatrix(float matrix[12], const float3 t = {0.0f, 0.0f, 0.0f}, const float3 s = {1.0f, 1.0f, 1.0f}, const float3 r = {0.0f, 0.0f, 0.0f})
+	void FillMatrix(float matrix[12], const float3 t = { 0.0f, 0.0f, 0.0f }, const float3 s = { 1.0f, 1.0f, 1.0f }, const float3 r = { 0.0f, 0.0f, 0.0f })
 	{
 		const float sa = sin(r.z);
 		const float ca = cos(r.z);
@@ -90,30 +90,65 @@ Renderer::~Renderer()
 	COE(optixDeviceContextDestroy(context_));
 }
 
-void Renderer::Render(float4* device_memory, const float time)
+void Renderer::Render(float4* frame_pointer, const float time)
 {
 	if (h_launch_params_.width < 64 || h_launch_params_.height < 64)
 		return;
 
 	h_launch_params_.time = time;
-	h_launch_params_.frame_buffer = device_memory;
+	h_launch_params_.frame_pointer = frame_pointer;
 	h_launch_params_.traversable = ias_handle_;
 
-	h_launch_params_.camera.position = camera_->GetPosition();
-	h_launch_params_.camera.horizontal_map = camera_->GetHorizontalMap();
-	h_launch_params_.camera.vertical_map = camera_->GetVerticalMap();
-	h_launch_params_.camera.starting_point = camera_->GetStartingPoint();
+	camera_->CalculateMapping(h_launch_params_.camera.starting_point, h_launch_params_.camera.horizontal_map,
+		h_launch_params_.camera.vertical_map, h_launch_params_.camera.position);
 
 	CCE(cudaMemcpy(d_launch_params_, &h_launch_params_, sizeof(LaunchParams), cudaMemcpyHostToDevice));
 
 	COE(optixLaunch(
-	    pipeline_, stream_,
-	    reinterpret_cast<CUdeviceptr>(d_launch_params_),
-	    sizeof(LaunchParams),
-	    &sbt_,
-	    h_launch_params_.width,
-	    h_launch_params_.height,
-	    1));
+		pipeline_, stream_,
+		reinterpret_cast<CUdeviceptr>(d_launch_params_),
+		sizeof(LaunchParams),
+		&sbt_,
+		h_launch_params_.width,
+		h_launch_params_.height,
+		1));
+
+	CCE(cudaDeviceSynchronize());
+	CCE(cudaGetLastError());
+}
+
+void Renderer::Denoise(float4* device_memory)
+{
+	OptixDenoiserLayer layer{};
+
+	layer.input.data = reinterpret_cast<CUdeviceptr>(device_memory);
+	layer.input.width = h_launch_params_.width;
+	layer.input.height = h_launch_params_.height;
+	layer.input.rowStrideInBytes = h_launch_params_.width * sizeof(float4);
+	layer.input.pixelStrideInBytes = sizeof(float4);
+	layer.input.format = OPTIX_PIXEL_FORMAT_FLOAT4;
+
+	layer.output.data = reinterpret_cast<CUdeviceptr>(device_memory);
+	layer.output.width = h_launch_params_.width;
+	layer.output.height = h_launch_params_.height;
+	layer.output.rowStrideInBytes = h_launch_params_.width * sizeof(float4);
+	layer.output.pixelStrideInBytes = sizeof(float4);
+	layer.output.format = OPTIX_PIXEL_FORMAT_FLOAT4;
+
+	constexpr OptixDenoiserGuideLayer guide_layer{};
+
+	COE(optixDenoiserInvoke(denoiser_, 
+		stream_, 
+		&denoiser_params_,
+		reinterpret_cast<CUdeviceptr>(denoiser_state_buffer_), 
+		denoiser_sizes_.stateSizeInBytes,
+		&guide_layer, 
+		&layer, 
+		1, 
+		0, 
+		0,
+		reinterpret_cast<CUdeviceptr>(denoiser_scratch_buffer_), 
+		denoiser_sizes_.withoutOverlapScratchSizeInBytes));
 
 	CCE(cudaDeviceSynchronize());
 	CCE(cudaGetLastError());
@@ -123,6 +158,12 @@ void Renderer::HandleWindowResize(const int width, const int height)
 {
 	h_launch_params_.width = width;
 	h_launch_params_.height = height;
+
+	if (denoiser_active_)
+	{
+		DestroyDenoiser();
+		InitDenoiser();
+	}
 }
 
 void Renderer::InitOptix()
@@ -141,6 +182,42 @@ void Renderer::InitOptix()
 
 	CCE(cudaStreamCreate(&stream_));
 	COE(optixDeviceContextCreate(cuda_context, &options, &context_));
+}
+
+void Renderer::InitDenoiser()
+{
+	OptixDenoiserOptions denoiser_options = {};
+
+	COE(optixDenoiserCreate(context_, OPTIX_DENOISER_MODEL_KIND_HDR, &denoiser_options, &denoiser_));
+
+	COE(optixDenoiserComputeMemoryResources(denoiser_, h_launch_params_.width, h_launch_params_.height, &denoiser_sizes_));
+
+	CCE(cudaMalloc(&denoiser_state_buffer_, denoiser_sizes_.stateSizeInBytes));
+	CCE(cudaMalloc(&denoiser_scratch_buffer_, denoiser_sizes_.withoutOverlapScratchSizeInBytes));
+
+	COE(optixDenoiserSetup(
+		denoiser_,
+		stream_,
+		h_launch_params_.width,
+		h_launch_params_.height,
+		reinterpret_cast<CUdeviceptr>(denoiser_state_buffer_),
+		denoiser_sizes_.stateSizeInBytes,
+		reinterpret_cast<CUdeviceptr>(denoiser_scratch_buffer_),
+		denoiser_sizes_.withoutOverlapScratchSizeInBytes));
+
+	CCE(cudaDeviceSynchronize());
+	CCE(cudaGetLastError());
+
+	denoiser_active_ = true;
+}
+
+void Renderer::DestroyDenoiser()
+{
+	denoiser_active_ = false;
+
+	CCE(cudaFree(denoiser_state_buffer_));
+	CCE(cudaFree(denoiser_scratch_buffer_));
+	COE(optixDenoiserDestroy(denoiser_));
 }
 
 void Renderer::CreateModules()
@@ -351,42 +428,42 @@ void Renderer::PrepareGas(const OptixBuildOperation operation)
 	unsigned indices[]
 	{
 		// Top
-        2, 6, 7,
-        2, 3, 7,
+		2, 6, 7,
+		2, 3, 7,
 
 		// Bottom
-        0, 4, 5,
-        0, 1, 5,
+		0, 4, 5,
+		0, 1, 5,
 
 		// Left
-        0, 2, 6,
-        0, 4, 6,
+		0, 2, 6,
+		0, 4, 6,
 
 		// Right
-        1, 3, 7,
-        1, 5, 7,
+		1, 3, 7,
+		1, 5, 7,
 
 		// Front
-        0, 2, 3,
-        0, 1, 3,
+		0, 2, 3,
+		0, 1, 3,
 
 		// Back
-        4, 6, 7,
-        4, 5, 7
-    };
+		4, 6, 7,
+		4, 5, 7
+	};
 
 
-    float vertices[]
+	float vertices[]
 	{
-        -0.5f, -0.5f,  0.5f,
-         0.5f, -0.5f,  0.5f,
-        -0.5f,  0.5f,  0.5f,
-         0.5f,  0.5f,  0.5f,
-        -0.5f, -0.5f, -0.5f,
-         0.5f, -0.5f, -0.5f,
-        -0.5f,  0.5f, -0.5f,
-         0.5f,  0.5f, -0.5f 
-    };
+		-0.5f, -0.5f,  0.5f,
+		 0.5f, -0.5f,  0.5f,
+		-0.5f,  0.5f,  0.5f,
+		 0.5f,  0.5f,  0.5f,
+		-0.5f, -0.5f, -0.5f,
+		 0.5f, -0.5f, -0.5f,
+		-0.5f,  0.5f, -0.5f,
+		 0.5f,  0.5f, -0.5f
+	};
 
 	unsigned* device_indices = nullptr;
 	float* device_vertices = nullptr;
@@ -422,10 +499,10 @@ void Renderer::PrepareGas(const OptixBuildOperation operation)
 
 void Renderer::PrepareIas(const OptixBuildOperation operation)
 {
-    std::vector<OptixInstance> instances;
+	std::vector<OptixInstance> instances;
 
 	for (const auto& chunk : world_->GetChunks())
-    {
+	{
 		for (unsigned char i = 0; i < Chunk::size_; i++)
 		{
 			for (unsigned char j = 0; j < Chunk::size_; j++)
@@ -435,7 +512,7 @@ void Renderer::PrepareIas(const OptixBuildOperation operation)
 					if (chunk.GetVoxel(i, j, k) == 1)
 					{
 						OptixInstance instance = {};
-	        
+
 						instance.instanceId = static_cast<unsigned>(instances.size());
 						instance.visibilityMask = 255;
 						instance.sbtOffset = 0;
@@ -449,19 +526,19 @@ void Renderer::PrepareIas(const OptixBuildOperation operation)
 				}
 			}
 		}
-    }
+	}
 
-    OptixInstance* instance_buffer;
+	OptixInstance* instance_buffer;
 	CCE(cudaMalloc(reinterpret_cast<void**>(&instance_buffer), instances.size() * sizeof(OptixInstance)));
 	CCE(cudaMemcpy(instance_buffer, instances.data(), instances.size() * sizeof(OptixInstance), cudaMemcpyHostToDevice));
 
-    OptixBuildInput input = {};
-    input.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
-    input.instanceArray.instances = reinterpret_cast<CUdeviceptr>(instance_buffer);
-    input.instanceArray.numInstances = static_cast<unsigned>(instances.size());
+	OptixBuildInput input = {};
+	input.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
+	input.instanceArray.instances = reinterpret_cast<CUdeviceptr>(instance_buffer);
+	input.instanceArray.numInstances = static_cast<unsigned>(instances.size());
 
 	PrepareAs(input, ias_buffer_, ias_handle_, operation);
-    
+
 	CCE(cudaFree(instance_buffer));
 }
 

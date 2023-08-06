@@ -6,8 +6,7 @@ struct LaunchParams
 {
 	int width{}, height{};
     float time{};
-    float cloud_render_distance{};
-	float4* frame_buffer = nullptr;
+	float4* frame_pointer = nullptr;
 
     struct
     {

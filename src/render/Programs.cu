@@ -41,9 +41,9 @@ namespace
 		if (t > 0.0f)
 		{
 			const float3 uv = origin + t * direction;
-			const float noise = Fbm2D(make_float2(uv.x, uv.z) * 0.0005f + make_float2(0.0f, -launch_params.time * 0.1f), 2);
+			const float noise = Fbm2D(make_float2(uv.x, uv.z) * 5e-4f + make_float2(0.0f, -launch_params.time * 0.1f), 2);
 			const float brightness = 0.1f * smoothstep(-0.2f, 0.6f, noise);
-			color = lerp(color, make_float3(1.0f), brightness);
+			color = lerp(color, make_float3(1.0f), brightness / (t * 2e-4f));
 		}
 
 		return color;
@@ -74,7 +74,7 @@ namespace
 		{
 			float density = Fbm3D(position * 0.002f + make_float3(0.0f, 0.0f, -launch_params.time * 0.1f), 2);
 			// Density decreases further away from the camera
-			density *= smoothstep(0.2f, 0.3f, density / (length(origin - position) * 0.0005f));
+			density *= smoothstep(0.2f, 0.3f, density / (length(origin - position) * 5e-4f));
 
 			const float delta = expf(-density * march_step);
 			transmittance *= delta;
@@ -149,7 +149,7 @@ extern "C" __global__ void __raygen__render()
 	const unsigned pixel_index = index.x + index.y * launch_params.width;
 
 	// Using frame memory as seed for RNG
-	unsigned random_state = xoshiro((uint4*)launch_params.frame_buffer + pixel_index);
+	unsigned random_state = xoshiro((uint4*)launch_params.frame_pointer + pixel_index);
 
 	const float u = (static_cast<float>(index.x) + pcg(&random_state)) / static_cast<float>(launch_params.width);
 	const float v = (static_cast<float>(index.y) + pcg(&random_state)) / static_cast<float>(launch_params.height);
@@ -161,5 +161,5 @@ extern "C" __global__ void __raygen__render()
 
 	trace(origin, direction, pixel_color);
 
-	launch_params.frame_buffer[pixel_index] = make_float4(powf(pixel_color, 1.0f / 2.2f), 1.0f);
+	launch_params.frame_pointer[pixel_index] = make_float4(powf(pixel_color, 1.0f / 2.2f), 1.0f);
 }

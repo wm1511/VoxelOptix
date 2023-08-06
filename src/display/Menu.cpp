@@ -1,4 +1,9 @@
-#include "Menu.h"
+#include "Menu.hpp"
+
+Menu::Menu(std::shared_ptr<Renderer> renderer) :
+	renderer_(std::move(renderer))
+{
+}
 
 void Menu::CheckCursorMode(GLFWwindow* window)
 {
@@ -18,5 +23,19 @@ void Menu::CheckCursorMode(GLFWwindow* window)
 			in_menu_ = false;
 			glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 		}
+	}
+}
+
+void Menu::SwitchDenoiserState(GLFWwindow* window)
+{
+	if (glfwGetKey(window, GLFW_KEY_LEFT_BRACKET) == GLFW_PRESS)
+	{
+		if (renderer_->DenoiserActive())
+			renderer_->DestroyDenoiser();
+	}
+	else if (glfwGetKey(window, GLFW_KEY_RIGHT_BRACKET) == GLFW_PRESS)
+	{
+		if (!renderer_->DenoiserActive())
+			renderer_->InitDenoiser();
 	}
 }

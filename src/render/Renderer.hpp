@@ -21,8 +21,13 @@ public:
 	Renderer& operator=(const Renderer&) = delete;
 	Renderer& operator=(Renderer&&) = delete;
 
-	void Render(float4* device_memory, float time);
+	void Render(float4* frame_pointer, float time);
+	void Denoise(float4* device_memory);
 	void HandleWindowResize(int width, int height);
+	void InitDenoiser();
+	void DestroyDenoiser();
+
+	[[nodiscard]] bool DenoiserActive() const { return denoiser_active_; }
 
 private:
 	void InitOptix();
@@ -42,9 +47,15 @@ private:
 	OptixModule module_ = nullptr;
 	OptixPipeline pipeline_ = nullptr;
 	OptixShaderBindingTable sbt_{};
+	OptixDenoiser denoiser_ = nullptr;
 
 	OptixPipelineCompileOptions pipeline_compile_options_{};
 	OptixModuleCompileOptions module_compile_options_{};
+	OptixDenoiserParams denoiser_params_{};
+
+	void* denoiser_scratch_buffer_ = nullptr, * denoiser_state_buffer_ = nullptr;
+	OptixDenoiserSizes denoiser_sizes_{};
+	bool denoiser_active_{};
 
 	std::vector<OptixProgramGroup> raygen_programs_{};
 	std::vector<OptixProgramGroup> miss_programs_{};
