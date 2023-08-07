@@ -49,7 +49,7 @@ add_executable (VoxelOptix
     "src/render/Camera.cpp" 
     "src/display/Menu.cpp" 
     "src/world/Chunk.cpp" 
-    "src/world/World.cpp")
+    "src/world/World.cpp" "src/display/TextRenderer.cpp")
 
 target_include_directories(VoxelOptix PRIVATE ${OPTIX7_DIR}/include)
 target_precompile_headers(VoxelOptix PUBLIC pch.h)

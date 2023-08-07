@@ -21,6 +21,6 @@ private:
 	void CreateShader();
 
 	int width_ = 0, height_ = 0;
-	unsigned vbo_ = 0, pbo_ = 0, texture_ = 0, shader_ = 0;
+	unsigned vao_ = 0, vbo_ = 0, pbo_ = 0, texture_ = 0, shader_ = 0;
 	cudaGraphicsResource_t cuda_pbo_ = nullptr;
 };

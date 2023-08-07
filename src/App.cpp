@@ -49,6 +49,9 @@ void App::OnUpdate()
 	frame_->UnmapMemory();
 
 	frame_->Display();
+
+	if (menu_->InMenu())
+		menu_->Display();
 }
 
 void App::OnResize() const

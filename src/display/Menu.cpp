@@ -1,8 +1,14 @@
 #include "Menu.hpp"
 
 Menu::Menu(std::shared_ptr<Renderer> renderer) :
-	renderer_(std::move(renderer))
+	renderer_(std::move(renderer)),
+	text_renderer_(std::make_unique<TextRenderer>())
 {
+}
+
+void Menu::Display() const
+{
+	text_renderer_->Render(0.0f, 0.8f, "Voxel Optix", 16.0f, make_float3(0.0f));
 }
 
 void Menu::CheckCursorMode(GLFWwindow* window)
