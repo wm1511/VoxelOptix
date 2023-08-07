@@ -166,6 +166,15 @@ void Renderer::HandleWindowResize(const int width, const int height)
 	}
 }
 
+void Renderer::HandleIasRebuild()
+{
+	if (world_->NeedsReconstruction())
+	{
+		CCE(cudaFree(ias_buffer_));
+		PrepareIas(OPTIX_BUILD_OPERATION_BUILD);
+	}
+}
+
 void Renderer::InitOptix()
 {
 	COE(optixInit());
@@ -337,7 +346,7 @@ void Renderer::CreatePipeline()
 void Renderer::PrepareAs(const OptixBuildInput& build_input, void*& buffer, OptixTraversableHandle& handle, const OptixBuildOperation operation) const
 {
 	OptixAccelBuildOptions accel_options = {};
-	accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_COMPACTION /*| OPTIX_BUILD_FLAG_ALLOW_UPDATE*/;
+	accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_COMPACTION | OPTIX_BUILD_FLAG_PREFER_FAST_BUILD;
 	accel_options.motionOptions.numKeys = 1;
 	accel_options.operation = operation;
 
@@ -367,7 +376,7 @@ void Renderer::PrepareAs(const OptixBuildInput& build_input, void*& buffer, Opti
 
 		COE(optixAccelBuild(
 			context_,
-			nullptr,
+			stream_,
 			&accel_options,
 			&build_input,
 			1,
@@ -387,7 +396,7 @@ void Renderer::PrepareAs(const OptixBuildInput& build_input, void*& buffer, Opti
 		CCE(cudaMalloc(&buffer, compacted_size));
 		COE(optixAccelCompact(
 			context_,
-			nullptr,
+			stream_,
 			handle,
 			reinterpret_cast<CUdeviceptr>(buffer),
 			compacted_size,
@@ -405,7 +414,7 @@ void Renderer::PrepareAs(const OptixBuildInput& build_input, void*& buffer, Opti
 
 		COE(optixAccelBuild(
 			context_,
-			nullptr,
+			stream_,
 			&accel_options,
 			&build_input,
 			1,

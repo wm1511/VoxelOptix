@@ -24,6 +24,7 @@ public:
 	void Render(float4* frame_pointer, float time);
 	void Denoise(float4* device_memory);
 	void HandleWindowResize(int width, int height);
+	void HandleIasRebuild();
 	void InitDenoiser();
 	void DestroyDenoiser();
 

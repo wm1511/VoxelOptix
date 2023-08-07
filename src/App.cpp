@@ -34,6 +34,8 @@ void App::OnUpdate()
 	delta_time_ = current_frame - last_frame_;
 	last_frame_ = current_frame;
 
+	std::future<void> reconstruction = std::async(std::launch::async, &World::HandleReconstruction, world_, camera_->GetPosition());
+
 	menu_->CheckCursorMode(window_->GetGLFWWindow());
 	menu_->SwitchDenoiserState(window_->GetGLFWWindow());
 
@@ -52,6 +54,9 @@ void App::OnUpdate()
 
 	if (menu_->InMenu())
 		menu_->Display();
+
+	reconstruction.get();
+	renderer_->HandleIasRebuild();
 }
 
 void App::OnResize() const
