@@ -1,12 +1,12 @@
 #include "App.hpp"
 
 App::App() :
-	window_(std::make_unique<Window>(1920, 1080, "Voxel Optix")),
+	window_(std::make_shared<Window>(1920, 1080, "Voxel Optix")),
 	frame_(std::make_unique<Frame>(window_->GetWidth(), window_->GetHeight())),
 	camera_(std::make_shared<Camera>(window_->GetWidth(), window_->GetHeight())),
 	world_(std::make_shared<World>()),
 	renderer_(std::make_shared<Renderer>(window_->GetWidth(), window_->GetHeight(), camera_, world_)),
-	menu_(std::make_unique<Menu>(renderer_))
+	menu_(std::make_unique<Menu>(window_, renderer_))
 {
 }
 
@@ -34,10 +34,7 @@ void App::OnUpdate()
 	delta_time_ = current_frame - last_frame_;
 	last_frame_ = current_frame;
 
-	std::future<void> reconstruction = std::async(std::launch::async, &World::HandleReconstruction, world_, camera_->GetPosition());
-
-	menu_->CheckCursorMode(window_->GetGLFWWindow());
-	menu_->SwitchDenoiserState(window_->GetGLFWWindow());
+	auto reconstruction = std::jthread(&World::HandleReconstruction, world_, camera_->GetPosition());
 
 	camera_->Update(window_->GetGLFWWindow(), delta_time_, menu_->InMenu());
 
@@ -53,9 +50,14 @@ void App::OnUpdate()
 	frame_->Display();
 
 	if (menu_->InMenu())
+	{
+		menu_->Update();
 		menu_->Display();
+	}
+	else
+		menu_->HandleMenuEnter();
 
-	reconstruction.get();
+	reconstruction.join();
 	renderer_->HandleIasRebuild();
 }
 

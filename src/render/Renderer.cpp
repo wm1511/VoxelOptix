@@ -244,7 +244,7 @@ void Renderer::CreateModules()
 		OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
 	pipeline_compile_options_.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE;
 	pipeline_compile_options_.usesMotionBlur = false;
-	pipeline_compile_options_.numPayloadValues = 3;
+	pipeline_compile_options_.numPayloadValues = 11;
 	pipeline_compile_options_.numAttributeValues = 0;
 #ifdef _DEBUG
 	pipeline_compile_options_.exceptionFlags = OPTIX_EXCEPTION_FLAG_DEBUG;
@@ -329,7 +329,7 @@ void Renderer::CreatePipeline()
 	for (auto pg : hit_programs_)
 		program_groups.push_back(pg);
 
-	constexpr OptixPipelineLinkOptions pipeline_link_options{ 8u };
+	const OptixPipelineLinkOptions pipeline_link_options{ h_launch_params_.max_depth };
 
 	COE(optixPipelineCreate(
 		context_,

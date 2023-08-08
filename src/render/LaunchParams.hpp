@@ -6,6 +6,7 @@ struct LaunchParams
 {
 	int width{}, height{};
     float time{};
+    unsigned max_depth = 8;
 	float4* frame_pointer = nullptr;
 
     struct

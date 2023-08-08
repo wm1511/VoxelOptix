@@ -24,13 +24,6 @@ extern float __uint_as_float(unsigned x);
 
 namespace
 {
-	__forceinline__ __device__ float3 Fog(const float3 color, const float t)
-	{
-		const float3 intensity = exp2f(-t * 0.005f * make_float3(0.1f, 0.15f, 0.4f));
-		// Fog color based on wall paint named "Transparent Fog"
-		return color * intensity + (1.0f - intensity) * make_float3(0.776f, 0.843f, 0.847f);
-	}
-
 	__forceinline__ __device__ float3 RenderSky(const float3& origin, const float3& direction)
 	{
 		// Sky color gradient
@@ -91,11 +84,19 @@ namespace
 		return make_float4(color, alpha * smoothstep(0.0f, 0.3f, cutoff));
 	}
 
-	__forceinline__ __device__ void trace(const float3& origin, const float3& direction, float3& color)
+	__forceinline__ __device__ void trace(float3& origin, float3& direction, float3& color, unsigned& random_state, unsigned& depth)
 	{
 		unsigned u0 = __float_as_uint(color.x);
 		unsigned u1 = __float_as_uint(color.y);
 		unsigned u2 = __float_as_uint(color.z);
+		unsigned u3 = random_state;
+		unsigned u4 = depth;
+		unsigned u5 = __float_as_uint(origin.x);
+		unsigned u6 = __float_as_uint(origin.y);
+		unsigned u7 = __float_as_uint(origin.z);
+		unsigned u8 = __float_as_uint(direction.x);
+		unsigned u9 = __float_as_uint(direction.y);
+		unsigned u10 = __float_as_uint(direction.z);
 
 		optixTrace(
 			launch_params.traversable,
@@ -109,24 +110,39 @@ namespace
 			0,
 			1,
 			0,
-			u0, u1, u2);
+			u0, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10);
 
+		origin = make_float3(__uint_as_float(u5), __uint_as_float(u6), __uint_as_float(u7));
+		direction = make_float3(__uint_as_float(u8), __uint_as_float(u9), __uint_as_float(u10));
 		color = make_float3(__uint_as_float(u0), __uint_as_float(u1), __uint_as_float(u2));
+		random_state = u3;
+		depth = u4;
 	}
 }
 
 extern "C" __global__ void __closesthit__triangle()
 {
 	const unsigned index = optixGetPrimitiveIndex();
-	const float shading = 0.2f + 0.8f * fabsf(dot(kNormals[index / 2], optixGetWorldRayDirection()));
+	unsigned random_state = optixGetPayload_3();
 
-	float3 color = make_float3(0.5f, 0.5f, 0.5f) * shading;
-	// Applying fog to objects further away from the camera
-	color = Fog(color, optixGetRayTmax());
+	float3 color = make_float3(__uint_as_float(optixGetPayload_0()), __uint_as_float(optixGetPayload_1()), __uint_as_float(optixGetPayload_2()));
+
+	const float3 reflected_direction = kNormals[index / 2] + sphere_random(&random_state);
+	const float3 hit_point = optixGetWorldRayOrigin() + optixGetRayTmax() * optixGetWorldRayDirection();
+
+	color *= make_float3(0.5f);
 
 	optixSetPayload_0(__float_as_uint(color.x));
 	optixSetPayload_1(__float_as_uint(color.y));
 	optixSetPayload_2(__float_as_uint(color.z));
+	optixSetPayload_3(random_state);
+	optixSetPayload_4(optixGetPayload_4() - 1);
+	optixSetPayload_5(__float_as_uint(hit_point.x));
+	optixSetPayload_6(__float_as_uint(hit_point.y));
+	optixSetPayload_7(__float_as_uint(hit_point.z));
+	optixSetPayload_8(__float_as_uint(reflected_direction.x));
+	optixSetPayload_9(__float_as_uint(reflected_direction.y));
+	optixSetPayload_10(__float_as_uint(reflected_direction.z));
 }
 
 extern "C" __global__ void __miss__sky()
@@ -134,32 +150,39 @@ extern "C" __global__ void __miss__sky()
 	const float3 origin = optixGetWorldRayOrigin();
 	const float3 direction = optixGetWorldRayDirection();
 
-	float3 color = RenderSky(origin, direction);
+	float3 color = make_float3(__uint_as_float(optixGetPayload_0()), __uint_as_float(optixGetPayload_1()), __uint_as_float(optixGetPayload_2()));
+
+	color *= RenderSky(origin, direction);
 	const float4 cloud_color = RenderClouds(origin, direction);
 	color = color * (1.0f - cloud_color.w) + make_float3(cloud_color);
 
 	optixSetPayload_0(__float_as_uint(color.x));
 	optixSetPayload_1(__float_as_uint(color.y));
 	optixSetPayload_2(__float_as_uint(color.z));
+	optixSetPayload_4(0);
 }
 
 extern "C" __global__ void __raygen__render()
 {
 	const uint3 index = optixGetLaunchIndex();
 	const unsigned pixel_index = index.x + index.y * launch_params.width;
+	unsigned depth_remaining = launch_params.max_depth;
 
-	// Using frame memory as seed for RNG
-	unsigned random_state = xoshiro((uint4*)launch_params.frame_pointer + pixel_index);
+	// Using constant random seed to make noise stable
+	unsigned random_state = pixel_index;
 
 	const float u = (static_cast<float>(index.x) + pcg(&random_state)) / static_cast<float>(launch_params.width);
 	const float v = (static_cast<float>(index.y) + pcg(&random_state)) / static_cast<float>(launch_params.height);
 
 	float3 pixel_color = make_float3(1.0f);
 
-	const float3 origin = launch_params.camera.position;
-	const float3 direction = launch_params.camera.starting_point + u * launch_params.camera.horizontal_map + v * launch_params.camera.vertical_map - origin;
+	float3 origin = launch_params.camera.position;
+	float3 direction = launch_params.camera.starting_point + u * launch_params.camera.horizontal_map + v * launch_params.camera.vertical_map - origin;
 
-	trace(origin, direction, pixel_color);
+	do
+	{
+		trace(origin, direction, pixel_color, random_state, depth_remaining);
+	} while (depth_remaining > 0);
 
 	launch_params.frame_pointer[pixel_index] = make_float4(powf(pixel_color, 1.0f / 2.2f), 1.0f);
 }

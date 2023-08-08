@@ -28,6 +28,8 @@ public:
 	void InitDenoiser();
 	void DestroyDenoiser();
 
+	void SetMaxDepth(const unsigned depth) { h_launch_params_.max_depth = depth; }
+	[[nodiscard]] unsigned GetMaxDepth() const { return h_launch_params_.max_depth; }
 	[[nodiscard]] bool DenoiserActive() const { return denoiser_active_; }
 
 private:

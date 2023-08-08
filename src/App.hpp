@@ -24,7 +24,7 @@ private:
 	void OnceASecond() const;
 
 	double delta_time_ = 0.0, last_frame_ = 0.0;
-	std::unique_ptr<Window> window_ = nullptr;
+	std::shared_ptr<Window> window_ = nullptr;
 	std::unique_ptr<Frame> frame_ = nullptr;
 	std::shared_ptr<Camera> camera_ = nullptr;
 	std::shared_ptr<World> world_ = nullptr;
