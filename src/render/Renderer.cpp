@@ -65,7 +65,11 @@ Renderer::Renderer(const int width, const int height, std::shared_ptr<Camera> ca
 	CreatePipeline();
 
 	PrepareGas(OPTIX_BUILD_OPERATION_BUILD);
-	PrepareIas(OPTIX_BUILD_OPERATION_BUILD);
+
+	for (auto& chunk : world_->GetChunks() | std::views::values)
+		PrepareBottomIas(chunk.GetIasBuffer(), chunk.GetIasHandle(), chunk);
+
+	PrepareTopIas(OPTIX_BUILD_OPERATION_BUILD);
 
 	CreateSbt();
 
@@ -83,10 +87,11 @@ Renderer::~Renderer()
 	CCE(cudaFree(d_miss_records_));
 	CCE(cudaFree(d_hit_records_));
 
-	CCE(cudaFree(ias_buffer_));
+	CCE(cudaFree(top_ias_buffer_));
 	CCE(cudaFree(gas_buffer_));
 
-	CCE(cudaStreamDestroy(stream_));
+	CCE(cudaStreamDestroy(bottom_ias_stream_));
+	CCE(cudaStreamDestroy(main_stream_));
 	COE(optixDeviceContextDestroy(context_));
 }
 
@@ -97,7 +102,7 @@ void Renderer::Render(float4* frame_pointer, const float time)
 
 	h_launch_params_.time = time;
 	h_launch_params_.frame_pointer = frame_pointer;
-	h_launch_params_.traversable = ias_handle_;
+	h_launch_params_.traversable = top_ias_handle_;
 
 	camera_->CalculateMapping(h_launch_params_.camera.starting_point, h_launch_params_.camera.horizontal_map,
 		h_launch_params_.camera.vertical_map, h_launch_params_.camera.position);
@@ -105,7 +110,7 @@ void Renderer::Render(float4* frame_pointer, const float time)
 	CCE(cudaMemcpy(d_launch_params_, &h_launch_params_, sizeof(LaunchParams), cudaMemcpyHostToDevice));
 
 	COE(optixLaunch(
-		pipeline_, stream_,
+		pipeline_, main_stream_,
 		reinterpret_cast<CUdeviceptr>(d_launch_params_),
 		sizeof(LaunchParams),
 		&sbt_,
@@ -119,6 +124,7 @@ void Renderer::Render(float4* frame_pointer, const float time)
 
 void Renderer::Denoise(float4* device_memory)
 {
+	OptixDenoiserParams denoiser_params{};
 	OptixDenoiserLayer layer{};
 
 	layer.input.data = reinterpret_cast<CUdeviceptr>(device_memory);
@@ -137,17 +143,17 @@ void Renderer::Denoise(float4* device_memory)
 
 	constexpr OptixDenoiserGuideLayer guide_layer{};
 
-	COE(optixDenoiserInvoke(denoiser_, 
-		stream_, 
-		&denoiser_params_,
-		reinterpret_cast<CUdeviceptr>(denoiser_state_buffer_), 
+	COE(optixDenoiserInvoke(denoiser_,
+		main_stream_,
+		&denoiser_params,
+		reinterpret_cast<CUdeviceptr>(denoiser_state_buffer_),
 		denoiser_sizes_.stateSizeInBytes,
-		&guide_layer, 
-		&layer, 
-		1, 
-		0, 
+		&guide_layer,
+		&layer,
+		1,
 		0,
-		reinterpret_cast<CUdeviceptr>(denoiser_scratch_buffer_), 
+		0,
+		reinterpret_cast<CUdeviceptr>(denoiser_scratch_buffer_),
 		denoiser_sizes_.withoutOverlapScratchSizeInBytes));
 
 	CCE(cudaDeviceSynchronize());
@@ -170,8 +176,9 @@ void Renderer::HandleIasRebuild()
 {
 	if (world_->NeedsReconstruction())
 	{
-		CCE(cudaFree(ias_buffer_));
-		PrepareIas(OPTIX_BUILD_OPERATION_BUILD);
+		CCE(cudaStreamSynchronize(bottom_ias_stream_));
+		CCE(cudaFree(top_ias_buffer_));
+		PrepareTopIas(OPTIX_BUILD_OPERATION_BUILD);
 	}
 }
 
@@ -189,7 +196,8 @@ void Renderer::InitOptix()
 
 	const CUcontext cuda_context = nullptr;
 
-	CCE(cudaStreamCreate(&stream_));
+	CCE(cudaStreamCreate(&main_stream_));
+	CCE(cudaStreamCreate(&bottom_ias_stream_));
 	COE(optixDeviceContextCreate(cuda_context, &options, &context_));
 }
 
@@ -206,7 +214,7 @@ void Renderer::InitDenoiser()
 
 	COE(optixDenoiserSetup(
 		denoiser_,
-		stream_,
+		main_stream_,
 		h_launch_params_.width,
 		h_launch_params_.height,
 		reinterpret_cast<CUdeviceptr>(denoiser_state_buffer_),
@@ -231,13 +239,15 @@ void Renderer::DestroyDenoiser()
 
 void Renderer::CreateModules()
 {
-	module_compile_options_.maxRegisterCount = 50;
+	OptixModuleCompileOptions module_compile_options{};
+
+	module_compile_options.maxRegisterCount = 50;
 #ifdef _DEBUG
-	module_compile_options_.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
-	module_compile_options_.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_FULL;
+	module_compile_options.optLevel = OPTIX_COMPILE_OPTIMIZATION_LEVEL_0;
+	module_compile_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_FULL;
 #else
-	module_compile_options_.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
-	module_compile_options_.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
+	module_compile_options.optLevel = OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
+	module_compile_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
 #endif
 
 	pipeline_compile_options_.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING |
@@ -257,7 +267,7 @@ void Renderer::CreateModules()
 
 	COE(optixModuleCreate(
 		context_,
-		&module_compile_options_,
+		&module_compile_options,
 		&pipeline_compile_options_,
 		shader.c_str(),
 		shader.size(),
@@ -343,7 +353,7 @@ void Renderer::CreatePipeline()
 	COE(optixPipelineSetStackSize(pipeline_, 2 * 1024, 2 * 1024, 2 * 1024, 2));
 }
 
-void Renderer::PrepareAs(const OptixBuildInput& build_input, void*& buffer, OptixTraversableHandle& handle, const OptixBuildOperation operation) const
+void Renderer::PrepareAs(const OptixBuildInput& build_input, void*& buffer, OptixTraversableHandle& handle, const OptixBuildOperation operation, const cudaStream_t stream) const
 {
 	OptixAccelBuildOptions accel_options = {};
 	accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_COMPACTION | OPTIX_BUILD_FLAG_PREFER_FAST_BUILD;
@@ -376,7 +386,7 @@ void Renderer::PrepareAs(const OptixBuildInput& build_input, void*& buffer, Opti
 
 		COE(optixAccelBuild(
 			context_,
-			stream_,
+			stream,
 			&accel_options,
 			&build_input,
 			1,
@@ -396,7 +406,7 @@ void Renderer::PrepareAs(const OptixBuildInput& build_input, void*& buffer, Opti
 		CCE(cudaMalloc(&buffer, compacted_size));
 		COE(optixAccelCompact(
 			context_,
-			stream_,
+			stream,
 			handle,
 			reinterpret_cast<CUdeviceptr>(buffer),
 			compacted_size,
@@ -414,7 +424,7 @@ void Renderer::PrepareAs(const OptixBuildInput& build_input, void*& buffer, Opti
 
 		COE(optixAccelBuild(
 			context_,
-			stream_,
+			stream,
 			&accel_options,
 			&build_input,
 			1,
@@ -489,12 +499,12 @@ void Renderer::PrepareGas(const OptixBuildOperation operation)
 
 	input.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
 	input.triangleArray.vertexStrideInBytes = sizeof(float3);
-	input.triangleArray.numVertices = static_cast<unsigned>(8);
+	input.triangleArray.numVertices = 8u;
 	input.triangleArray.vertexBuffers = reinterpret_cast<CUdeviceptr*>(&device_vertices);
 
 	input.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
 	input.triangleArray.indexStrideInBytes = sizeof(uint3);
-	input.triangleArray.numIndexTriplets = static_cast<unsigned>(12);
+	input.triangleArray.numIndexTriplets = 12u;
 	input.triangleArray.indexBuffer = reinterpret_cast<CUdeviceptr>(device_indices);
 
 	input.triangleArray.flags = flags;
@@ -503,36 +513,74 @@ void Renderer::PrepareGas(const OptixBuildOperation operation)
 	input.triangleArray.sbtIndexOffsetSizeInBytes = 0;
 	input.triangleArray.sbtIndexOffsetStrideInBytes = 0;
 
-	PrepareAs(input, gas_buffer_, gas_handle_, operation);
+	PrepareAs(input, gas_buffer_, gas_handle_, operation, main_stream_);
 }
 
-void Renderer::PrepareIas(const OptixBuildOperation operation)
+void Renderer::PrepareTopIas(const OptixBuildOperation operation)
 {
 	std::vector<OptixInstance> instances;
 
-	for (const auto& chunk : world_->GetChunks())
+	auto& chunks = world_->GetChunks();
+
+	std::vector<int3> keys{ chunks.size() };
+	std::ranges::transform(chunks, keys.begin(), [](auto p) {return p.first; });
+
+	std::ranges::partial_sort(keys, keys.begin() + static_cast<long long>(keys.size()) / 8,
+		[&chunks](const int3& k1, const int3& k2) { return chunks[k1].GetDistance() < chunks[k2].GetDistance(); });
+
+	for (size_t i = 0; i < keys.size() / 8; i++)
 	{
-		for (unsigned char i = 0; i < Chunk::size_; i++)
+		OptixInstance instance = {};
+
+		instance.instanceId = static_cast<unsigned>(instances.size());
+		instance.visibilityMask = 255;
+		instance.sbtOffset = 0;
+		instance.flags = OPTIX_INSTANCE_FLAG_DISABLE_ANYHIT;
+
+		FillMatrix(instance.transform, make_float3(0.0f));
+
+		instance.traversableHandle = chunks[keys[i]].GetIasHandle();
+		instances.push_back(instance);
+	}
+
+	OptixInstance* instance_buffer;
+	CCE(cudaMalloc(reinterpret_cast<void**>(&instance_buffer), instances.size() * sizeof(OptixInstance)));
+	CCE(cudaMemcpy(instance_buffer, instances.data(), instances.size() * sizeof(OptixInstance), cudaMemcpyHostToDevice));
+
+	OptixBuildInput input = {};
+	input.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
+	input.instanceArray.instances = reinterpret_cast<CUdeviceptr>(instance_buffer);
+	input.instanceArray.numInstances = static_cast<unsigned>(instances.size());
+
+	PrepareAs(input, top_ias_buffer_, top_ias_handle_, operation, main_stream_);
+
+	CCE(cudaFree(instance_buffer));
+}
+
+void Renderer::PrepareBottomIas(void*& buffer, OptixTraversableHandle& handle, const Chunk& chunk) const
+{
+	std::vector<OptixInstance> instances;
+
+	for (unsigned char i = 0; i < Chunk::size_; i++)
+	{
+		for (unsigned char j = 0; j < Chunk::size_; j++)
 		{
-			for (unsigned char j = 0; j < Chunk::size_; j++)
+			for (unsigned char k = 0; k < Chunk::size_; k++)
 			{
-				for (unsigned char k = 0; k < Chunk::size_; k++)
-				{
-					if (chunk.GetVoxel(i, j, k) == 1)
-					{
-						OptixInstance instance = {};
+				if (!chunk.GetVoxel(i, j, k))
+					continue;
 
-						instance.instanceId = static_cast<unsigned>(instances.size());
-						instance.visibilityMask = 255;
-						instance.sbtOffset = 0;
-						instance.flags = OPTIX_INSTANCE_FLAG_DISABLE_ANYHIT;
+				OptixInstance instance = {};
 
-						FillMatrix(instance.transform, chunk.GetPosition() + make_float3(i, j, k));
+				instance.instanceId = static_cast<unsigned>(instances.size());
+				instance.visibilityMask = 255;
+				instance.sbtOffset = 0;
+				instance.flags = OPTIX_INSTANCE_FLAG_DISABLE_ANYHIT;
 
-						instance.traversableHandle = gas_handle_;
-						instances.push_back(instance);
-					}
-				}
+				FillMatrix(instance.transform, chunk.GetPosition() + make_float3(i, j, k));
+
+				instance.traversableHandle = gas_handle_;
+				instances.push_back(instance);
 			}
 		}
 	}
@@ -546,7 +594,7 @@ void Renderer::PrepareIas(const OptixBuildOperation operation)
 	input.instanceArray.instances = reinterpret_cast<CUdeviceptr>(instance_buffer);
 	input.instanceArray.numInstances = static_cast<unsigned>(instances.size());
 
-	PrepareAs(input, ias_buffer_, ias_handle_, operation);
+	PrepareAs(input, buffer, handle, OPTIX_BUILD_OPERATION_BUILD, bottom_ias_stream_);
 
 	CCE(cudaFree(instance_buffer));
 }

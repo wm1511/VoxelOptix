@@ -12,6 +12,8 @@ App::App() :
 
 void App::Run()
 {
+	auto builder = std::thread(&App::WorkInBackground, this);
+
 	while (!window_->ShouldClose())
 	{
 		glfwPollEvents();
@@ -26,6 +28,9 @@ void App::Run()
 
 		glfwSwapBuffers(window_->GetGLFWWindow());
 	}
+
+	worker_running_ = false;
+	builder.join();
 }
 
 void App::OnUpdate()
@@ -34,9 +39,8 @@ void App::OnUpdate()
 	delta_time_ = current_frame - last_frame_;
 	last_frame_ = current_frame;
 
-	auto reconstruction = std::jthread(&World::HandleReconstruction, world_, camera_->GetPosition());
-
 	camera_->Update(window_->GetGLFWWindow(), delta_time_, menu_->InMenu());
+	renderer_->HandleIasRebuild();
 
 	float4* frame_pointer = frame_->MapMemory();
 
@@ -56,9 +60,6 @@ void App::OnUpdate()
 	}
 	else
 		menu_->HandleMenuEnter();
-
-	reconstruction.join();
-	renderer_->HandleIasRebuild();
 }
 
 void App::OnResize() const
@@ -74,4 +75,14 @@ void App::OnResize() const
 void App::OnceASecond() const
 {
 	window_->SetTitle(std::format("Voxel Optix - FPS: {}", static_cast<unsigned>(1.0 / delta_time_)));
+}
+
+void App::WorkInBackground() const
+{
+	while (worker_running_)
+	{
+		world_->HandleReconstruction(camera_->GetPosition());
+
+		std::this_thread::yield();
+	}
 }

@@ -18,7 +18,7 @@ private:
 	void Rotate(GLFWwindow* window, float factor);
 
 	float2 prior_cursor_{ 0.0f, 0.0f }, angle_{ 0.5f * std::numbers::pi_v<float>, 0.0f };
-	float3 position_{ 0.0f, 34.0f, 0.0f }, direction_{};
+	float3 position_{ 0.0f, 2.0f, 0.0f }, direction_{};
 	float fov_{ 1.3f }, movement_speed_{ 20.0f }, rotation_speed_{ 0.02f }, aspect_ratio_;
 	bool moved_{};
 };

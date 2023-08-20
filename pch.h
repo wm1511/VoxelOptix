@@ -8,8 +8,10 @@
 #include <cuda_gl_interop.h>
 
 #include <memory>
+#include <ranges>
 #include <iostream>
 #include <vector>
+#include <array>
 #include <fstream>
 #include <exception>
 #include <filesystem>
@@ -17,3 +19,4 @@
 #include <numbers>
 #include <thread>
 #include <unordered_map>
+#include <map>

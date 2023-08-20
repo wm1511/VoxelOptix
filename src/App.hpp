@@ -22,7 +22,9 @@ private:
 	void OnUpdate();
 	void OnResize() const;
 	void OnceASecond() const;
+	void WorkInBackground() const;
 
+	bool worker_running_{ true };
 	double delta_time_ = 0.0, last_frame_ = 0.0;
 	std::shared_ptr<Window> window_ = nullptr;
 	std::unique_ptr<Frame> frame_ = nullptr;
