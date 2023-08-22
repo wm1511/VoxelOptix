@@ -6,13 +6,13 @@ App::App() :
 	camera_(std::make_shared<Camera>(window_->GetWidth(), window_->GetHeight())),
 	world_(std::make_shared<World>()),
 	renderer_(std::make_shared<Renderer>(window_->GetWidth(), window_->GetHeight(), camera_, world_)),
-	menu_(std::make_unique<Menu>(window_, renderer_))
+	menu_(std::make_unique<Menu>(window_, renderer_, world_))
 {
 }
 
 void App::Run()
 {
-	auto builder = std::thread(&App::WorkInBackground, this);
+	auto worker = std::thread(&App::WorkInBackground, this);
 
 	while (!window_->ShouldClose())
 	{
@@ -30,7 +30,7 @@ void App::Run()
 	}
 
 	worker_running_ = false;
-	builder.join();
+	worker.join();
 }
 
 void App::OnUpdate()
@@ -40,7 +40,6 @@ void App::OnUpdate()
 	last_frame_ = current_frame;
 
 	camera_->Update(window_->GetGLFWWindow(), delta_time_, menu_->InMenu());
-	renderer_->HandleIasRebuild();
 
 	float4* frame_pointer = frame_->MapMemory();
 
@@ -81,7 +80,13 @@ void App::WorkInBackground() const
 {
 	while (worker_running_)
 	{
-		world_->HandleReconstruction(camera_->GetPosition());
+		world_->CheckForUpdate(camera_->GetPosition());
+
+		if (world_->NeedsUpdate())
+		{
+			world_->HandleUpdate();
+			renderer_->HandleAsUpdate();
+		}
 
 		std::this_thread::yield();
 	}

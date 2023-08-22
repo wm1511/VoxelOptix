@@ -2,8 +2,7 @@
 #include "../misc/Noise.hpp"
 
 Chunk::Chunk(const int3 coords) :
-	coords_(coords),
-	distance_(length(make_float3(coords * size_)))
+	coords_(coords)
 {
 	for (unsigned char x = 0; x < size_; x++)
 	{

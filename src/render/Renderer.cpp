@@ -172,14 +172,25 @@ void Renderer::HandleWindowResize(const int width, const int height)
 	}
 }
 
-void Renderer::HandleIasRebuild()
+void Renderer::HandleAsUpdate()
 {
-	if (world_->NeedsReconstruction())
+	for (auto& chunk : world_->GetChunks() | std::views::values)
+		if (chunk.GetIasHandle() == 0)
+			PrepareBottomIas(chunk.GetIasBuffer(), chunk.GetIasHandle(), chunk);
+
+	CCE(cudaStreamSynchronize(bottom_ias_stream_));
+
+	if (render_distance_ == last_render_distance_)
 	{
-		CCE(cudaStreamSynchronize(bottom_ias_stream_));
-		CCE(cudaFree(top_ias_buffer_));
-		PrepareTopIas(OPTIX_BUILD_OPERATION_BUILD);
+		PrepareTopIas(OPTIX_BUILD_OPERATION_UPDATE);
 	}
+	else
+	{
+		PrepareTopIas(OPTIX_BUILD_OPERATION_BUILD);
+		last_render_distance_ = render_distance_;
+	}
+
+	world_->ResetUpdateFlag();
 }
 
 void Renderer::InitOptix()
@@ -250,8 +261,7 @@ void Renderer::CreateModules()
 	module_compile_options.debugLevel = OPTIX_COMPILE_DEBUG_LEVEL_NONE;
 #endif
 
-	pipeline_compile_options_.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING |
-		OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
+	pipeline_compile_options_.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_ANY;
 	pipeline_compile_options_.usesPrimitiveTypeFlags = OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE;
 	pipeline_compile_options_.usesMotionBlur = false;
 	pipeline_compile_options_.numPayloadValues = 11;
@@ -350,13 +360,13 @@ void Renderer::CreatePipeline()
 		nullptr, nullptr,
 		&pipeline_));
 
-	COE(optixPipelineSetStackSize(pipeline_, 2 * 1024, 2 * 1024, 2 * 1024, 2));
+	COE(optixPipelineSetStackSize(pipeline_, 2 * 1024, 2 * 1024, 2 * 1024, 3));
 }
 
 void Renderer::PrepareAs(const OptixBuildInput& build_input, void*& buffer, OptixTraversableHandle& handle, const OptixBuildOperation operation, const cudaStream_t stream) const
 {
 	OptixAccelBuildOptions accel_options = {};
-	accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_COMPACTION | OPTIX_BUILD_FLAG_PREFER_FAST_BUILD;
+	accel_options.buildFlags = OPTIX_BUILD_FLAG_ALLOW_UPDATE | OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
 	accel_options.motionOptions.numKeys = 1;
 	accel_options.operation = operation;
 
@@ -520,27 +530,30 @@ void Renderer::PrepareTopIas(const OptixBuildOperation operation)
 {
 	std::vector<OptixInstance> instances;
 
-	auto& chunks = world_->GetChunks();
+	auto [camera_x, camera_y, camera_z] = world_->GetCameraChunk();
 
-	std::vector<int3> keys{ chunks.size() };
-	std::ranges::transform(chunks, keys.begin(), [](auto p) {return p.first; });
+	int min_height = camera_y > -2 ? -render_distance_ : camera_y - render_distance_ / 2;
+	int max_height = camera_y > -2 ? 0 : camera_y + render_distance_ / 2;
 
-	std::ranges::partial_sort(keys, keys.begin() + static_cast<long long>(keys.size()) / 8,
-		[&chunks](const int3& k1, const int3& k2) { return chunks[k1].GetDistance() < chunks[k2].GetDistance(); });
-
-	for (size_t i = 0; i < keys.size() / 8; i++)
+	for (int x = camera_x - render_distance_; x < camera_x + render_distance_; x++)
 	{
-		OptixInstance instance = {};
+		for (int y = min_height; y < max_height; y++)
+		{
+			for (int z = camera_z - render_distance_; z < camera_z + render_distance_; z++)
+			{
+				OptixInstance instance = {};
 
-		instance.instanceId = static_cast<unsigned>(instances.size());
-		instance.visibilityMask = 255;
-		instance.sbtOffset = 0;
-		instance.flags = OPTIX_INSTANCE_FLAG_DISABLE_ANYHIT;
+				instance.instanceId = static_cast<unsigned>(instances.size());
+				instance.visibilityMask = 255;
+				instance.sbtOffset = 0;
+				instance.flags = OPTIX_INSTANCE_FLAG_DISABLE_ANYHIT;
 
-		FillMatrix(instance.transform, make_float3(0.0f));
+				FillMatrix(instance.transform, make_float3(0.0f));
 
-		instance.traversableHandle = chunks[keys[i]].GetIasHandle();
-		instances.push_back(instance);
+				instance.traversableHandle = world_->GetChunk(make_int3(x, y, z)).GetIasHandle();
+				instances.push_back(instance);
+			}
+		}
 	}
 
 	OptixInstance* instance_buffer;

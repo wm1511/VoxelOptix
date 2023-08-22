@@ -24,12 +24,12 @@ public:
 	void Render(float4* frame_pointer, float time);
 	void Denoise(float4* device_memory);
 	void HandleWindowResize(int width, int height);
-	void HandleIasRebuild();
+	void HandleAsUpdate();
 	void InitDenoiser();
 	void DestroyDenoiser();
 
-	void SetMaxDepth(const unsigned depth) { h_launch_params_.max_depth = depth; }
-	[[nodiscard]] unsigned GetMaxDepth() const { return h_launch_params_.max_depth; }
+	[[nodiscard]] unsigned& GetMaxDepth() { return h_launch_params_.max_depth; }
+	[[nodiscard]] int& GetRenderDistance() { return render_distance_; }
 	[[nodiscard]] bool DenoiserActive() const { return denoiser_active_; }
 
 private:
@@ -56,6 +56,7 @@ private:
 	OptixDenoiser denoiser_ = nullptr;
 
 	// Options
+	int render_distance_{4}, last_render_distance_{4};
 	OptixPipelineCompileOptions pipeline_compile_options_{};
 
 	// Denoiser
