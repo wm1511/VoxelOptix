@@ -28,7 +28,7 @@ private:
 	double delta_time_ = 0.0, last_frame_ = 0.0;
 	std::shared_ptr<Window> window_ = nullptr;
 	std::unique_ptr<Frame> frame_ = nullptr;
-	std::shared_ptr<Camera> camera_ = nullptr;
+	std::shared_ptr<CameraController> camera_controller_ = nullptr;
 	std::shared_ptr<World> world_ = nullptr;
 	std::shared_ptr<Renderer> renderer_ = nullptr;
 	std::unique_ptr<Menu> menu_ = nullptr;

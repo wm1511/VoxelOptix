@@ -30,7 +30,7 @@ public:
 	void ResetUpdateFlag() { needs_update_ = false; }
 	void SetUpdateFlag() { needs_update_ = true; }
 	std::unordered_map<int3, Chunk>& GetChunks() { return chunks_; }
-	Chunk& GetChunk(const int3 coords) { return chunks_[coords]; }
+	Chunk& GetChunk(const int3 coords) { return chunks_.at(coords); }
 	[[nodiscard]] int& GetGenerationDistance() { return generation_distance_; }
 	[[nodiscard]] int3 GetCameraChunk() const { return camera_chunk_; }
 	[[nodiscard]] bool NeedsUpdate() const { return needs_update_; }

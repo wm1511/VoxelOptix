@@ -3,9 +3,9 @@
 App::App() :
 	window_(std::make_shared<Window>(1920, 1080, "Voxel Optix")),
 	frame_(std::make_unique<Frame>(window_->GetWidth(), window_->GetHeight())),
-	camera_(std::make_shared<Camera>(window_->GetWidth(), window_->GetHeight())),
+	camera_controller_(std::make_shared<CameraController>()),
 	world_(std::make_shared<World>()),
-	renderer_(std::make_shared<Renderer>(window_->GetWidth(), window_->GetHeight(), camera_, world_)),
+	renderer_(std::make_shared<Renderer>(window_->GetWidth(), window_->GetHeight(), camera_controller_, world_)),
 	menu_(std::make_unique<Menu>(window_, renderer_, world_))
 {
 }
@@ -39,7 +39,7 @@ void App::OnUpdate()
 	delta_time_ = current_frame - last_frame_;
 	last_frame_ = current_frame;
 
-	camera_->Update(window_->GetGLFWWindow(), delta_time_, menu_->InMenu());
+	camera_controller_->UpdateCamera(window_->GetGLFWWindow(), delta_time_, menu_->InMenu());
 
 	float4* frame_pointer = frame_->MapMemory();
 
@@ -65,7 +65,6 @@ void App::OnResize() const
 {
 	const int width = window_->GetWidth(), height = window_->GetHeight();
 
-	camera_->HandleWindowResize(width, height);
 	renderer_->HandleWindowResize(width, height);
 	frame_->Recreate(width, height);
 	window_->ResetResizedFlag();
@@ -80,7 +79,7 @@ void App::WorkInBackground() const
 {
 	while (worker_running_)
 	{
-		world_->CheckForUpdate(camera_->GetPosition());
+		world_->CheckForUpdate(camera_controller_->GetCameraPosition());
 
 		if (world_->NeedsUpdate())
 		{

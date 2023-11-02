@@ -55,8 +55,8 @@ namespace
 	}
 }
 
-Renderer::Renderer(const int width, const int height, std::shared_ptr<Camera> camera, std::shared_ptr<World> world) :
-	camera_(std::move(camera)),
+Renderer::Renderer(const int width, const int height, std::shared_ptr<CameraController> camera_controller, std::shared_ptr<World> world) :
+	camera_controller_(std::move(camera_controller)),
 	world_(std::move(world))
 {
 	InitOptix();
@@ -104,7 +104,8 @@ void Renderer::Render(float4* frame_pointer, const float time)
 	h_launch_params_.frame_pointer = frame_pointer;
 	h_launch_params_.traversable = top_ias_handle_;
 
-	camera_->CalculateMapping(h_launch_params_.camera.starting_point, h_launch_params_.camera.horizontal_map,
+	camera_controller_->CalculateMapping(static_cast<float>(h_launch_params_.width) / static_cast<float>(h_launch_params_.height),
+		h_launch_params_.camera.starting_point, h_launch_params_.camera.horizontal_map,
 		h_launch_params_.camera.vertical_map, h_launch_params_.camera.position);
 
 	CCE(cudaMemcpy(d_launch_params_, &h_launch_params_, sizeof(LaunchParams), cudaMemcpyHostToDevice));

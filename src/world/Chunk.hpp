@@ -1,5 +1,4 @@
 #pragma once
-#include <optix_types.h>
 
 class Chunk
 {

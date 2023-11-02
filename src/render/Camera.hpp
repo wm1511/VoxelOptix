@@ -3,22 +3,13 @@
 class Camera
 {
 public:
-	Camera(int width, int height);
+	void Move(float3 delta);
+	void Rotate(float2 delta);
 
-	void HandleWindowResize(int width, int height);
-	void Update(GLFWwindow* window, double delta_time, bool in_menu);
-	void CalculateMapping(float3& starting_point, float3& h_map, float3& v_map, float3& position) const;
-
-	[[nodiscard]] bool Moved() const { return moved_; }
 	[[nodiscard]] float3 GetPosition() const { return position_; }
-	void ResetMovedFlag() { moved_ = false; }
+	[[nodiscard]] float3 GetDirection() const { return direction_; }
 
 private:
-	void Move(GLFWwindow* window, float factor);
-	void Rotate(GLFWwindow* window, float factor);
-
-	float2 prior_cursor_{ 0.0f, 0.0f }, angle_{ 0.5f * std::numbers::pi_v<float>, 0.0f };
-	float3 position_{ 0.0f, 2.0f, 0.0f }, direction_{};
-	float fov_{ 1.3f }, movement_speed_{ 20.0f }, rotation_speed_{ 0.02f }, aspect_ratio_;
-	bool moved_{};
+	float2 angle_{ 0.5f * std::numbers::pi_v<float>, 0.0f };
+	float3 position_{ 0.0f, 2.0f, 0.0f }, direction_{0.0f, 0.0f, 1.0f};
 };

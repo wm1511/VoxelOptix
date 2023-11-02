@@ -1,5 +1,5 @@
 #pragma once
-#include "Camera.hpp"
+#include "CameraController.hpp"
 #include "../world/World.hpp"
 #include "LaunchParams.hpp"
 
@@ -13,7 +13,7 @@ struct SbtRecord
 class Renderer final
 {
 public:
-	Renderer(int width, int height, std::shared_ptr<Camera> camera, std::shared_ptr<World> world);
+	Renderer(int width, int height, std::shared_ptr<CameraController> camera_controller, std::shared_ptr<World> world);
 	~Renderer();
 
 	Renderer(const Renderer&) = delete;
@@ -44,7 +44,7 @@ private:
 	void CreateSbt();
 
 	// "Foreign" pointers
-	std::shared_ptr<Camera> camera_ = nullptr;
+	std::shared_ptr<CameraController> camera_controller_ = nullptr;
 	std::shared_ptr<World> world_ = nullptr;
 
 	// Core structures

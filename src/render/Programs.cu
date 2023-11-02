@@ -1,4 +1,4 @@
-#include "LaunchParams.hpp"
+#include "../render/LaunchParams.hpp"
 #include "../external/helper_math.h"
 #include "../misc/Random.hpp"
 #include "../misc/Noise.hpp"
@@ -15,8 +15,8 @@ __constant__ constexpr float3 kNormals[6]
 	{0.0f, -1.0f, 0.0f},
 	{-1.0f, 0.0f, 0.0f},
 	{1.0f, 0.0f, 0.0f},
-	{0.0f, 0.0f, -1.0f},
 	{0.0f, 0.0f, 1.0f},
+	{0.0f, 0.0f, -1.0f},
 };
 
 extern unsigned __float_as_uint(float x);
@@ -34,7 +34,7 @@ namespace
 		if (t > 0.0f)
 		{
 			const float3 uv = origin + t * direction;
-			const float noise = Fbm2D(make_float2(uv.x, uv.z) * 5e-4f + make_float2(0.0f, -launch_params.time * 0.1f), 2);
+			const float noise = Fbm2D(make_float2(uv.x, uv.z) * 5e-4f + make_float2(0.0f, -launch_params.time * 0.02f), 2);
 			const float brightness = 0.1f * smoothstep(-0.2f, 0.6f, noise);
 			color = lerp(color, make_float3(1.0f), brightness / (t * 2e-4f));
 		}
@@ -65,7 +65,7 @@ namespace
 
 		for (int i = 0; i < steps; i++)
 		{
-			float density = Fbm3D(position * 0.002f + make_float3(0.0f, 0.0f, -launch_params.time * 0.1f), 2);
+			float density = Fbm3D(position * 0.002f + make_float3(0.0f, 0.0f, -launch_params.time * 0.02f), 2);
 			// Density decreases further away from the camera
 			density *= smoothstep(0.2f, 0.3f, density / (length(origin - position) * 5e-4f));
 
@@ -84,7 +84,7 @@ namespace
 		return make_float4(color, alpha * smoothstep(0.0f, 0.3f, cutoff));
 	}
 
-	__forceinline__ __device__ void trace(float3& origin, float3& direction, float3& color, unsigned& random_state, unsigned& depth)
+	__forceinline__ __device__ void Trace(float3& origin, float3& direction, float3& color, unsigned& random_state, unsigned& depth)
 	{
 		unsigned u0 = __float_as_uint(color.x);
 		unsigned u1 = __float_as_uint(color.y);
@@ -181,7 +181,7 @@ extern "C" __global__ void __raygen__render()
 
 	do
 	{
-		trace(origin, direction, pixel_color, random_state, depth_remaining);
+		Trace(origin, direction, pixel_color, random_state, depth_remaining);
 	} while (depth_remaining > 0);
 
 	launch_params.frame_pointer[pixel_index] = make_float4(powf(pixel_color, 1.0f / 2.2f), 1.0f);
