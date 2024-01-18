@@ -1,7 +1,7 @@
 # VoxelOptix
 ###### Voxel engine using OptiX and some procedural stuff
 ## Purpose
-The main idea of creating this engine was to build some voxel engine using OptiX SDK and CMake with vcpkg. I just wanted to learn how to use CMake properly and have some fun with voxels, so the result isn't optimized at all. 
+The main idea of creating this engine was to build some voxel engine using OptiX SDK and CMake with vcpkg. I just wanted to learn how to use CMake properly and have some fun with voxels, so the result isn't optimized at all. During implementation I found (and read about it) that using hardware-accelerated ray tracing doesn't perform well with voxels and procedurally generated geometry in general, so I didn't even try to optimize the result. In terms of performance, there are some better techniques like building a mesh from voxels or tracing rays in a fragment shader. 
 ## Features
 * OpenGL image and text display layer
 * Built-in pixel-style font
